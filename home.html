@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Tiling Calculator Dashboard</title>
+    <style>
+        :root {
+            /* Updated Colors for a slightly warmer, modern feel */
+            --primary: #4f46e5; /* Indigo */
+            --secondary: #6b7280; /* Gray */
+            --success: #10b981; /* Emerald */
+            --danger: #ef4444; /* Red */
+            --warning: #f59e0b; /* Amber */
+            --bg-color: #f3f4f6; /* Light Gray Background */
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 10px; 
+            background-color: var(--bg-color);
+            color: #1f2937;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 10px auto;
+            background: white;
+            padding: 20px; 
+            border-radius: 16px; 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 { font-size: 2.2em; margin-bottom: 15px; }
+        h2 { font-size: 1.5em; margin-bottom: 10px; }
+        h1, h2 { text-align: center; color: var(--primary); }
+
+        .input-group, .data-display, .result-display, .canvas-container, .suggestion-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: #ffffff;
+            transition: all 0.3s ease;
+        }
+        
+        .input-group:hover, .suggestion-group:hover {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        /* --- Data Display --- */
+        .data-display {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            background-color: #f9fafb;
+            padding: 15px 5px;
+        }
+        .data-box { padding: 8px; flex-basis: 30%; }
+        .data-label { font-size: 0.85em; color: var(--secondary); margin-bottom: 5px; font-weight: 500; }
+        .data-value { font-size: 1.6em; font-weight: 700; color: var(--primary); }
+        .live-distance { font-size: 2.5em !important; color: var(--danger); }
+
+        /* --- Buttons --- */
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px 20px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+        .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+        .btn-primary { background-color: var(--primary); color: white; }
+        .btn-success { background-color: var(--success); color: white; }
+        .btn-warning { background-color: var(--warning); color: #1f2937; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+        .btn-tile { 
+            background-color: #e5e7eb; color: #374151; border: 1px solid #d1d5db; padding: 10px; margin-right: 5px; width: auto; 
+            display: inline-block; font-size: 0.9em; border-radius: 6px; transition: background-color 0.2s;
+        }
+        .btn-tile:hover { background-color: #d1d5db; }
+        .btn:disabled { background-color: var(--secondary); opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
+
+        /* --- Forms --- */
+        label { display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563; }
+        select, input[type="text"], input[type="number"] {
+            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 6px; 
+            background-color: #f9fafb; box-sizing: border-box;
+        }
+        select { width: 100%; }
+
+        /* --- Grids (Desktop Default) --- */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .tile-preset-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; margin-bottom: 15px; justify-content: center; }
+
+        /* --- Results --- */
+        .result-item {
+            padding: 15px; border-left: 4px solid var(--success); background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        .result-item h3 { margin-top: 0; color: var(--primary); font-size: 1.1em; }
+        .result-value { font-size: 1.8em; font-weight: bold; color: var(--success); }
+        .result-sub-value { font-size: 0.8em; color: var(--secondary); margin-top: 5px; }
+
+        /* --- Status & Canvas --- */
+        #connect-status, #source-status { padding: 12px; border-radius: 8px; font-weight: 700; font-size: 1em; }
+        .status-disconnected { background-color: #f8d7da; color: var(--danger); }
+        .status-connected { background-color: #d4edda; color: var(--success); }
+        .source-live { background-color: #e6f7ff; color: var(--primary); }
+        .source-manual { background-color: #fff3cd; color: var(--warning); }
+        #floor-canvas { display: block; margin: 10px auto; border: 2px solid #343a40; background-color: #fefefe; border-radius: 8px; max-width: 100%; height: auto; }
+
+        /* --- MODAL STYLES --- */
+        #result-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7);
+            display: none; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-content {
+            background: white; padding: 30px; border-radius: 12px; max-width: 90%; width: 500px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4); text-align: center; transform: scale(0.9);
+            transition: transform 0.3s ease-out; opacity: 0;
+        }
+        .modal-content.visible { transform: scale(1); opacity: 1; }
+        .modal-content h3 { color: var(--success); font-size: 1.8em; margin-bottom: 20px; }
+        .modal-content p { font-size: 1.1em; margin-bottom: 8px; }
+        .modal-value { font-size: 2.5em; font-weight: 700; color: var(--primary); }
+        .modal-close-btn { 
+            background-color: var(--primary); color: white; padding: 10px 20px; border: none; border-radius: 6px; 
+            margin-top: 20px; cursor: pointer; transition: background-color 0.2s;
+        }
+        .modal-close-btn:hover { background-color: #3b33ac; }
+        
+        /* --- MOBILE RESPONSIVENESS --- */
+        @media screen and (max-width: 650px) {
+            .container { padding: 15px; border-radius: 0; }
+            h1 { font-size: 1.8em; }
+            h2 { font-size: 1.3em; }
+            .grid, .grid-3 { grid-template-columns: 1fr; gap: 15px; }
+            .data-display { flex-wrap: wrap; }
+            .data-box { flex-basis: 100%; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; }
+            .data-box:last-child { border-bottom: none; }
+            .live-distance { font-size: 2em !important; }
+            .modal-content { max-width: 95%; padding: 20px; }
+            .modal-value { font-size: 2em; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📐 IoT Tiling Calculator Dashboard</h1>
+
+    <div id="connect-status" class="status-disconnected">Disconnected from ESP32</div>
+    <div id="source-status" class="source-manual">Using **MANUAL** Dimensions for Calculation</div>
+
+    <!-- Live Data Display -->
+    <div class="data-display">
+        <div class="data-box">
+            <div class="data-label">Live Distance (m)</div>
+            <div class="data-value live-distance" id="live-distance">0.00</div>
+        </div>
+        <div class="data-box">
+            <div class="data-label">Length (L) Source Value (m)</div>
+            <div class="data-value" id="current-length">0.00</div>
+        </div>
+        <div class="data-box">
+            <div class="data-label">Breadth (B) Source Value (m)</div>
+            <div class="data-value" id="current-breadth">0.00</div>
+        </div>
+    </div>
+    
+    <!-- 2D Visualization -->
+    <div class="canvas-container">
+        <h2>🖼️ Room Floor Plan Visualization</h2>
+        <canvas id="floor-canvas" width="400" height="400"></canvas>
+    </div>
+
+    
+    <!-- Connection & Manual Input Section -->
+    <div class="input-group">
+        <div class="grid">
+            <div>
+                <h2>🔗 Connection & Live Data</h2>
+                <label for="esp32-ip">ESP32 Local IP Address:</label>
+                <input type="text" id="esp32-ip" value="192.168.4.1" placeholder="e.g., 192.168.1.50">
+                <button class="btn btn-primary" onclick="connectToESP32()">Connect to Device</button>
+            </div>
+            <div>
+                <h2>📝 Manual Dimension Entry</h2>
+                <label for="manual-length">Manual Length (m):</label>
+                <input type="number" id="manual-length" value="4.0" step="0.01" onchange="updateManualDimensions()">
+                <label for="manual-breadth">Manual Breadth (m):</label>
+                <input type="number" id="manual-breadth" value="3.0" step="0.01" onchange="updateManualDimensions()">
+            </div>
+        </div>
+        <button class="btn btn-warning" onclick="toggleMeasurementSource()">Toggle Source (Currently: <span id="source-toggle-text">Manual</span>)</button>
+    </div>
+
+
+    <div class="input-group grid">
+        <div>
+            <h2>📏 Measure Length (Live)</h2>
+            <p id="length-status">Requires Live Data Source. (Adds 5cm offset)</p>
+            <button class="btn btn-primary" id="btn-length" onclick="startMeasurement('length')" disabled>
+                Capture Length (5s Average)
+            </button>
+        </div>
+        <div>
+            <h2>📐 Measure Breadth (Live)</h2>
+            <p id="breadth-status">Requires Live Data Source. (Adds 5cm offset)</p>
+            <button class="btn btn-primary" id="btn-breadth" onclick="startMeasurement('breadth')" disabled>
+                Capture Breadth (5s Average)
+            </button>
+        </div>
+    </div>
+
+    <!-- Tiling Specifications -->
+    <div class="input-group">
+        <h2>🧱 Tile Specifications & Cost</h2>
+        
+        <h3>Tile Size Suggestions (m)</h3>
+        <div class="tile-preset-buttons">
+            <button class="btn-tile" onclick="applyTilePreset(0.3, 0.3)">0.3m x 0.3m (30x30cm)</button>
+            <button class="btn-tile" onclick="applyTilePreset(0.4, 0.4)">0.4m x 0.4m (40x40cm)</button>
+            <button class="btn-tile" onclick="applyTilePreset(0.6, 0.6)">0.6m x 0.6m (60x60cm)</button>
+            <button class="btn-tile" onclick="applyTilePreset(0.3, 0.6)">0.3m x 0.6m (30x60cm)</button>
+        </div>
+        
+        <div class="grid grid-3">
+            <div>
+                <label for="tile-length">Tile Length (m):</label>
+                <input type="number" id="tile-length" value="0.6" step="0.01" onchange="calculateResults()">
+            </div>
+            <div>
+                <label for="tile-breadth">Tile Breadth (m):</label>
+                <input type="number" id="tile-breadth" value="0.6" step="0.01" onchange="calculateResults()">
+            </div>
+            <div>
+                <label for="cost-per-tile">Cost Per Tile ($):</label>
+                <input type="number" id="cost-per-tile" value="5.00" step="0.01" onchange="calculateResults()">
+            </div>
+            <div>
+                <label for="tile-pattern">Tile Pattern:</label>
+                <select id="tile-pattern" onchange="calculateResults()">
+                    <option value="Straight Lay">Straight Lay (Default)</option>
+                    <option value="Diagonal">Diagonal (45°)</option>
+                    <option value="Herringbone">Herringbone</option>
+                    <option value="Brick">Brick/Running Bond</option>
+                </select>
+            </div>
+            <div class="result-item">
+                <h3>Tile Area (sq. m)</h3>
+                <div class="result-value" id="result-tile-area">0.36</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Supplier Suggestions -->
+    <div class="suggestion-group">
+        <h2>🛍️ Tile Design & Supplier Suggestions</h2>
+        <p>Common tile suppliers and design aesthetics for reference:</p>
+        <div class="grid">
+            <div>
+                <h3>Modern Look (Large Format)</h3>
+                <ul>
+                    <li>**Suppliers:** Porcelanosa, Daltile, Marazzi.</li>
+                    <li>**Design:** Large format (60x60cm or larger), gray/white polished porcelain.</li>
+                </ul>
+            </div>
+            <div>
+                <h3>Classic Look (Wood/Stone)</h3>
+                <ul>
+                    <li>**Suppliers:** MSI, Emser Tile, local stone yards.</li>
+                    <li>**Design:** Wood-look plank tiles (0.2m x 1.2m) or natural stone textures.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Final Results -->
+    <div class="result-display">
+        <h2>📊 Final Tiling Estimate</h2>
+        <div class="grid grid-3">
+            <div class="result-item">
+                <h3>Room Area (sq. m)</h3>
+                <div class="result-value" id="result-area">0.00</div>
+            </div>
+            <div class="result-item">
+                <h3>Tiles Required (Total)</h3>
+                <div class="result-value" id="result-tiles">0</div>
+                <div class="result-sub-value" id="wastage-used"></div>
+            </div>
+            <div class="result-item">
+                <h3>Estimated Total Cost ($)</h3>
+                <div class="result-value" id="result-cost">0.00</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio for Feedback (Base64 Encoded Short Tones) -->
+    <audio id="audio-success" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAACgAAAAAAAAA="></audio>
+    <audio id="audio-tick" src="data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAACgAAAAAAAAA="></audio>
+
+</div>
+
+<!-- FINAL RESULT MODAL POPUP -->
+<div id="result-modal" style="display: none;">
+    <div class="modal-content">
+        <h3>✨ Tiling Plan Complete!</h3>
+        <p>Room Dimensions: <span id="modal-dimensions">0.00m x 0.00m</span></p>
+        <p>Tiling Pattern: <span id="modal-pattern">Straight Lay</span></p>
+        <hr style="margin: 15px 0;">
+        <p style="font-size: 1.2em; font-weight: 600;">Tiles Required (Total):</p>
+        <div class="modal-value" id="modal-tiles">0</div>
+        <p style="font-size: 1.2em; font-weight: 600; margin-top: 15px;">Estimated Total Cost:</p>
+        <div class="modal-value" id="modal-cost">$0.00</div>
+        <p style="margin-top: 20px; font-size: 0.9em; color: var(--secondary);">*Includes <span id="modal-wastage">5%</span> wastage for cutting.</p>
+        <button class="modal-close-btn" onclick="hideResultModal()">Close Dashboard</button>
+    </div>
+</div>
+
+<script>
+    let ws; // WebSocket object
+    let liveDistance = 0;
+    
+    // Stores the values captured from the live device
+    let liveDimensions = { L: 0, B: 0 }; 
+    // Stores the manually entered values
+    let manualDimensions = { L: 4.0, B: 3.0 }; 
+    
+    // Toggle state: 'live' or 'manual'. Starts as 'manual' for offline functionality.
+    let measurementSource = 'manual'; 
+
+    const MEASUREMENT_DURATION_SECONDS = 5;
+    const SAMPLE_INTERVAL_MS = 100;
+    const DISTANCE_OFFSET_M = 0.05; // 5 cm offset for wrist-to-wall distance
+    const audioSuccess = document.getElementById('audio-success');
+    const audioTick = document.getElementById('audio-tick');
+    
+    const canvas = document.getElementById('floor-canvas');
+    const ctx = canvas.getContext('2d');
+    const CANVAS_SIZE = 400; // Fixed size for the square canvas
+    
+    // Pattern to Wastage Mapping (Percentage as Decimal)
+    const TILE_PATTERNS = {
+        'Straight Lay': 0.05, // 5% wastage
+        'Diagonal': 0.10,     // 10% wastage (requires cutting)
+        'Herringbone': 0.15,  // 15% wastage (most complex)
+        'Brick': 0.08         // 8% wastage (running bond)
+    };
+    
+    // --- MODAL FUNCTIONS ---
+    function showResultModal(results) {
+        document.getElementById('modal-dimensions').textContent = `${results.L.toFixed(2)}m x ${results.B.toFixed(2)}m`;
+        document.getElementById('modal-pattern').textContent = results.patternName;
+        document.getElementById('modal-tiles').textContent = results.tilesRequired;
+        document.getElementById('modal-cost').textContent = `$${results.totalCost.toFixed(2)}`;
+        document.getElementById('modal-wastage').textContent = `${Math.round(results.wastage * 100)}%`;
+
+        const modal = document.getElementById('result-modal');
+        const content = modal.querySelector('.modal-content');
+        modal.style.display = 'flex';
+        // Use a slight delay to trigger CSS transition
+        setTimeout(() => content.classList.add('visible'), 10);
+    }
+
+    function hideResultModal() {
+        const modal = document.getElementById('result-modal');
+        const content = modal.querySelector('.modal-content');
+        content.classList.remove('visible');
+        setTimeout(() => modal.style.display = 'none', 300);
+    }
+
+
+    // --- 1. Source Toggling & UI Update ---
+
+    function toggleMeasurementSource() {
+        if (measurementSource === 'manual') {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                measurementSource = 'live';
+                document.getElementById('source-toggle-text').textContent = 'Live IoT';
+                document.getElementById('source-status').textContent = 'Using **LIVE IOT** Data for Calculation';
+                document.getElementById('source-status').className = 'source-live';
+            } else {
+                alert("Cannot switch to Live Data: Device is not connected.");
+                return;
+            }
+        } else {
+            measurementSource = 'manual';
+            document.getElementById('source-toggle-text').textContent = 'Manual';
+            document.getElementById('source-status').textContent = 'Using **MANUAL** Dimensions for Calculation';
+            document.getElementById('source-status').className = 'source-manual';
+        }
+        updateCurrentDimensionsDisplay();
+        calculateResults(true);
+        drawFloorPlan();
+    }
+
+    function updateManualDimensions() {
+        const mL = parseFloat(document.getElementById('manual-length').value) || 0;
+        const mB = parseFloat(document.getElementById('manual-breadth').value) || 0;
+        manualDimensions.L = mL;
+        manualDimensions.B = mB;
+        if (measurementSource === 'manual') {
+            updateCurrentDimensionsDisplay();
+            calculateResults(true);
+            drawFloorPlan();
+        }
+    }
+
+    function updateCurrentDimensionsDisplay() {
+        let L, B;
+        if (measurementSource === 'live') {
+            L = liveDimensions.L;
+            B = liveDimensions.B;
+        } else {
+            L = manualDimensions.L;
+            B = manualDimensions.B;
+        }
+        document.getElementById('current-length').textContent = L.toFixed(2);
+        document.getElementById('current-breadth').textContent = B.toFixed(2);
+    }
+    
+    // --- 2. Connection Logic ---
+    function connectToESP32() {
+        const ip = document.getElementById('esp32-ip').value;
+        const statusElement = document.getElementById('connect-status');
+        
+        if (ws) ws.close();
+        
+        try {
+            ws = new WebSocket(`ws://${ip}/ws`); 
+        } catch (error) {
+            statusElement.textContent = `Connection Error: ${error.message}`;
+            statusElement.className = 'status-disconnected';
+            disableLiveButtons(true);
+            return;
+        }
+
+        ws.onopen = () => {
+            statusElement.textContent = '✅ Connected to ESP32';
+            statusElement.className = 'status-connected';
+            disableLiveButtons(false);
+            if (measurementSource === 'manual') {
+                toggleMeasurementSource(); 
+            }
+            console.log("WebSocket connected.");
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                liveDistance = parseFloat(event.data);
+                document.getElementById('live-distance').textContent = liveDistance.toFixed(2);
+            } catch (e) {
+                console.error("Failed to parse distance data:", event.data);
+            }
+        };
+
+        ws.onclose = () => {
+            statusElement.textContent = '❌ Disconnected. Check IP.';
+            statusElement.className = 'status-disconnected';
+            disableLiveButtons(true);
+            if (measurementSource === 'live') {
+                toggleMeasurementSource();
+            }
+        };
+
+        ws.onerror = (error) => {
+            statusElement.textContent = '⚠️ Connection Error. Check console.';
+            statusElement.className = 'status-disconnected';
+            disableLiveButtons(true);
+            console.error("WebSocket error:", error);
+        };
+    }
+
+    function disableLiveButtons(shouldDisable) {
+        document.getElementById('btn-length').disabled = shouldDisable;
+        document.getElementById('btn-breadth').disabled = shouldDisable;
+    }
+
+
+    // --- 3. Measurement and Averaging Logic ---
+    let sampleIntervalId = null;
+    let countdownIntervalId = null;
+    let distanceSamples = [];
+
+    function startMeasurement(type) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+            alert("Cannot start: Device is not connected.");
+            return;
+        }
+        
+        // Disable all measurement buttons during sampling
+        document.getElementById('btn-length').disabled = true;
+        document.getElementById('btn-breadth').disabled = true;
+        
+        distanceSamples = [];
+        let remainingTime = MEASUREMENT_DURATION_SECONDS;
+
+        // Countdown Timer
+        countdownIntervalId = setInterval(() => {
+            document.getElementById(`${type}-status`).textContent = `Sampling... ${remainingTime}s remaining.`;
+            remainingTime--;
+            audioTick.play();
+
+            if (remainingTime < 0) {
+                clearInterval(countdownIntervalId);
+            }
+        }, 1000);
+
+        // Data Sampling
+        sampleIntervalId = setInterval(() => {
+            if (liveDistance > 0) {
+                distanceSamples.push(liveDistance);
+            }
+        }, SAMPLE_INTERVAL_MS);
+
+        // Finalize after duration
+        setTimeout(() => {
+            clearInterval(sampleIntervalId);
+            finalizeMeasurement(type);
+
+            // Re-enable buttons if connection is still open
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                disableLiveButtons(false);
+            }
+
+        }, MEASUREMENT_DURATION_SECONDS * 1000);
+    }
+
+    function finalizeMeasurement(type) {
+        const statusEl = document.getElementById(`${type}-status`);
+        
+        if (distanceSamples.length === 0) {
+            statusEl.textContent = "Measurement Failed: No data sampled.";
+            return;
+        }
+
+        const sum = distanceSamples.reduce((a, b) => a + b, 0);
+        const average = sum / distanceSamples.length;
+        
+        // ADDED: Apply 5 cm (0.05m) offset for wrist-to-sensor distance
+        const finalDistance = average + DISTANCE_OFFSET_M; 
+
+        if (type === 'length') {
+            liveDimensions.L = finalDistance;
+        } else {
+            liveDimensions.B = finalDistance;
+        }
+        
+        statusEl.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)} Saved: ${finalDistance.toFixed(2)}m (Offset Applied).`;
+        audioSuccess.play();
+        
+        updateCurrentDimensionsDisplay();
+        const results = calculateResults(true);
+        
+        // ADDED: Show the final result in the modal
+        showResultModal(results);
+        
+        drawFloorPlan();
+    }
+
+
+    // --- 4. Tiling & Calculation Logic ---
+    function applyTilePreset(L, B) {
+        document.getElementById('tile-length').value = L.toFixed(2);
+        document.getElementById('tile-breadth').value = B.toFixed(2);
+        calculateResults(true);
+    }
+
+    function calculateResults(updateUI = false) {
+        let L, B;
+
+        // Determine which source to use
+        if (measurementSource === 'live') {
+            L = liveDimensions.L;
+            B = liveDimensions.B;
+        } else {
+            L = manualDimensions.L;
+            B = manualDimensions.B;
+        }
+        
+        const patternName = document.getElementById('tile-pattern').value;
+        const patternWastage = TILE_PATTERNS[patternName] || 0.05;
+        
+        const tileL = parseFloat(document.getElementById('tile-length').value);
+        const tileB = parseFloat(document.getElementById('tile-breadth').value);
+        const costPerTile = parseFloat(document.getElementById('cost-per-tile').value);
+        const wastage = patternWastage; 
+        
+        let areaRoom = 0;
+        let areaTile = 0;
+        let tilesRequired = 0;
+        let totalCost = 0;
+
+        if (L > 0 && B > 0 && tileL > 0 && tileB > 0) {
+            areaRoom = L * B;
+            areaTile = tileL * tileB;
+            
+            if (areaTile > 0) {
+                const tilesRaw = areaRoom / areaTile;
+                tilesRequired = Math.ceil(tilesRaw * (1 + wastage));
+                totalCost = tilesRequired * costPerTile;
+            }
+        }
+        
+        const results = {
+            L: L,
+            B: B,
+            areaRoom: areaRoom,
+            areaTile: areaTile,
+            tilesRequired: tilesRequired,
+            totalCost: totalCost,
+            patternName: patternName,
+            wastage: wastage,
+        };
+
+        if (updateUI) {
+            // Update Results Display on the main dashboard
+            document.getElementById('result-area').textContent = results.areaRoom.toFixed(2);
+            document.getElementById('result-tile-area').textContent = results.areaTile.toFixed(2);
+            document.getElementById('result-tiles').textContent = results.tilesRequired;
+            document.getElementById('result-cost').textContent = results.totalCost.toFixed(2);
+            document.getElementById('wastage-used').textContent = `Wastage used: ${Math.round(results.wastage * 100)}% (${results.patternName} Pattern)`;
+            drawFloorPlan();
+        }
+
+        return results;
+    }
+    
+    // --- 5. 2D Floor Plan Visualization ---
+    
+    function drawFloorPlan() {
+        try {
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            
+            let L, B;
+            if (measurementSource === 'live') {
+                L = liveDimensions.L;
+                B = liveDimensions.B;
+            } else {
+                L = manualDimensions.L;
+                B = manualDimensions.B;
+            }
+            
+            const pattern = document.getElementById('tile-pattern').value;
+            const tileL = parseFloat(document.getElementById('tile-length').value);
+            const tileB = parseFloat(document.getElementById('tile-breadth').value);
+
+            // Safety check for zero dimensions
+            if (L <= 0 || B <= 0 || tileL <= 0 || tileB <= 0) {
+                ctx.fillStyle = '#6c757d';
+                ctx.font = '16px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('Enter or Capture Dimensions & Tile Size', CANVAS_SIZE / 2, CANVAS_SIZE / 2);
+                return;
+            }
+            
+            // Define margin and drawing area size
+            const margin = 40;
+            const drawingArea = CANVAS_SIZE - 2 * margin;
+            
+            // Scaling logic: scale L and B to fit the drawing area while maintaining aspect ratio
+            const maxDim = Math.max(L, B);
+            const scale = drawingArea / maxDim;
+            
+            const drawL = L * scale;
+            const drawB = B * scale;
+
+            // Calculate starting position to center the drawing
+            const startX = margin + (drawingArea - drawL) / 2;
+            const startY = margin + (drawingArea - drawB) / 2;
+            
+            // --- 1. Draw the Room Boundary ---
+            ctx.strokeStyle = '#007bff';
+            ctx.lineWidth = 4;
+            ctx.strokeRect(startX, startY, drawL, drawB);
+            
+            // --- 2. Draw Tiling Pattern ---
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(startX, startY, drawL, drawB); 
+            ctx.clip();
+            
+            ctx.strokeStyle = '#cccccc';
+            ctx.lineWidth = 1;
+            
+            const drawTileL = tileL * scale;
+            const drawTileB = tileB * scale;
+
+            if (pattern === 'Straight Lay' || pattern === 'Brick') {
+                // Draw vertical lines (Length)
+                for (let x = startX; x <= startX + drawL + drawTileL; x += drawTileL) {
+                    ctx.moveTo(x, startY);
+                    ctx.lineTo(x, startY + drawB);
+                }
+                // Draw horizontal lines (Breadth)
+                for (let y = startY; y <= startY + drawB + drawTileB; y += drawTileB) {
+                    ctx.moveTo(startX, y);
+                    ctx.lineTo(startX + drawL, y);
+                }
+            } else if (pattern === 'Diagonal') {
+                // Simplified stable diagonal pattern
+                const spacing = drawTileL / Math.sqrt(2); 
+                const maxDimDraw = Math.max(drawL, drawB);
+                
+                // Draw lines from bottom-left to top-right diagonal
+                for (let d = -(maxDimDraw * 1.5); d < maxDimDraw * 1.5; d += spacing) {
+                    ctx.moveTo(startX, startY + d);
+                    ctx.lineTo(startX + drawL, startY + drawB + d);
+                }
+                
+                // Draw lines from top-left to bottom-right diagonal
+                for (let d = -(maxDimDraw * 1.5); d < maxDimDraw * 1.5; d += spacing) {
+                    ctx.moveTo(startX + d, startY);
+                    ctx.lineTo(startX + drawL + d, startY + drawB);
+                }
+            }
+            
+            ctx.stroke();
+            ctx.restore();
+
+            // --- 3. Add Dimension Labels ---
+            ctx.fillStyle = '#343a40';
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            
+            // Label for Length (L) - horizontal dimension
+            ctx.fillText(`L: ${L.toFixed(2)} m`, startX + drawL / 2, startY + drawB + 20);
+            
+            // Label for Breadth (B) - vertical dimension (rotated for clarity)
+            ctx.save();
+            ctx.translate(startX - 20, startY + drawB / 2);
+            ctx.rotate(-Math.PI / 2); // Rotate -90 degrees
+            ctx.fillText(`B: ${B.toFixed(2)} m`, 0, 0);
+            ctx.restore();
+            
+        } catch (e) {
+            console.error("Canvas Drawing Error:", e);
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+            ctx.fillStyle = '#dc3545';
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('VISUALIZATION ERROR', CANVAS_SIZE / 2, CANVAS_SIZE / 2);
+            ctx.fillText('Check console for details.', CANVAS_SIZE / 2, CANVAS_SIZE / 2 + 20);
+        }
+    }
+    
+    // Utility function to convert CSS variable to simple color string
+    function var2rgb(variable) {
+        const style = getComputedStyle(document.body);
+        return style.getPropertyValue(variable);
+    }
+
+    // Initial setup on load
+    document.addEventListener('DOMContentLoaded', () => {
+        // Run initial calculations based on default manual values
+        updateManualDimensions();
+        updateCurrentDimensionsDisplay();
+        calculateResults(true); // Initial calculation updates UI
+        drawFloorPlan(); 
+    });
+</script>
+
+</body>
+</html>
