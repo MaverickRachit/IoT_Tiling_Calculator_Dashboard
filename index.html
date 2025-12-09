@@ -958,38 +958,72 @@
     // Mock implementation for connectToBLE
     async function connectToBLE() {
         if (!navigator.bluetooth) {
-            alert("Web Bluetooth is not supported in this browser. Use Chrome or Edge over HTTPS.");
+            const statusEl = document.getElementById('connect-status');
+            statusEl.textContent = '❌ Web Bluetooth UNAVAILABLE (Requires Chrome/Edge, HTTPS)';
+            statusEl.className = 'status-disconnected';
+            speak("Web Bluetooth is not supported here. Using mock connection for demonstration.");
+            
+            // Proceed with mock connection (simulating success for sandbox testing)
+            bleDevice = { gatt: { connected: true }, name: 'Distance Streamer', addEventListener: (event, handler) => { /* mock listener */ } };
+            distanceCharacteristic = { startNotifications: async () => {}, addEventListener: (event, handler) => { /* mock listener */ } };
+            controlCharacteristic = { writeValue: async () => {} };
+
+            // Mock success UI update
+            document.getElementById('connect-status').textContent = '✅ Mock Connected (Live Feature Enabled)';
+            document.getElementById('connect-status').className = 'status-connected';
+            disableLiveButtons(false);
+            
+            if (measurementSource === 'manual') {
+                measurementSource = 'live';
+                updateSourceUI();
+            }
+
+            // Start mock data stream
+            setInterval(() => {
+                 // Mock event object for handleDistanceNotification
+                 handleDistanceNotification({ target: { value: new TextEncoder('utf-8').encode(Math.random().toFixed(2)) } });
+            }, 100); 
+
             return;
         }
 
         document.getElementById('connect-status').textContent = 'Searching for device...';
         document.getElementById('connect-status').className = 'status-disconnected';
         speak("Searching for device. Please ensure your device is powered on.");
-        
-        // Simulate connection process
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Mock successful connection
-        bleDevice = { gatt: { connected: true }, name: 'Distance Streamer', addEventListener: (event, handler) => { /* mock listener */ } };
-        distanceCharacteristic = { startNotifications: async () => {}, addEventListener: (event, handler) => { /* mock listener */ } };
-        controlCharacteristic = { writeValue: async () => {} };
-        
-        // Mock success
-        document.getElementById('connect-status').textContent = '✅ Connected to Device';
-        document.getElementById('connect-status').className = 'status-connected';
-        disableLiveButtons(false);
-        
-        if (measurementSource === 'manual') {
-            measurementSource = 'live';
-            updateSourceUI();
+
+        try {
+            bleDevice = await navigator.bluetooth.requestDevice({
+                filters: [{ name: 'Distance Streamer' }],
+                optionalServices: [SERVICE_UUID]
+            });
+            
+            bleDevice.addEventListener('gattserverdisconnected', bleDisconnectHandler);
+            const server = await bleDevice.gatt.connect();
+            
+            const service = await server.getPrimaryService(SERVICE_UUID);
+            distanceCharacteristic = await service.getCharacteristic(DISTANCE_CHAR_UUID);
+            controlCharacteristic = await service.getCharacteristic(CONTROL_CHAR_UUID);
+
+            await distanceCharacteristic.startNotifications();
+            distanceCharacteristic.addEventListener('characteristicvaluechanged', handleDistanceNotification);
+
+            document.getElementById('connect-status').textContent = '✅ Connected to Device';
+            document.getElementById('connect-status').className = 'status-connected';
+            disableLiveButtons(false);
+            
+            if (measurementSource === 'manual') {
+                measurementSource = 'live';
+                updateSourceUI();
+            }
+            speak("Device connected successfully. Ready to measure.");
+
+        } catch (error) {
+            console.error('Bluetooth Connection Error:', error);
+            document.getElementById('connect-status').textContent = `❌ Connection Failed: ${error.message}`;
+            document.getElementById('connect-status').className = 'status-disconnected';
+            disableLiveButtons(true);
+            speak("Connection failed. Please check device power and refresh.");
         }
-        speak("Device connected successfully. Ready to measure.");
-        
-        // Start mock data stream
-        setInterval(() => {
-             // Mock event object for handleDistanceNotification
-             handleDistanceNotification({ target: { value: new TextEncoder('utf-8').encode(Math.random().toFixed(2)) } });
-        }, 100); 
     }
 
     // Mock implementation for sendMeasureCommand
@@ -1010,8 +1044,11 @@
     let lastStableReading = 0;
 
     function startMeasurement(type) {
-        if (measurementSource !== 'live' || !controlCharacteristic) {
-            alert("Cannot start: Switch to Live mode and ensure the device is connected.");
+        // We now check for 'Mock Connected' as a valid state for using live features in the sandbox
+        const isConnected = document.getElementById('connect-status').textContent.includes('Connected');
+
+        if (measurementSource !== 'live' || !isConnected) {
+            alert("Cannot start: Switch to Live mode and ensure the device is connected (or mock connected).");
             return;
         }
         
@@ -1113,7 +1150,9 @@
             document.getElementById('source-status').textContent = 'Using LIVE BLE data for calculation';
             document.getElementById('source-status').className = 'source-live';
             liveSection.style.display = 'grid';
-            disableLiveButtons(false);
+            // Only re-enable buttons if connection status is green (connected or mock connected)
+            const isConnected = document.getElementById('connect-status').className.includes('connected');
+            disableLiveButtons(!isConnected);
         }
         updateCurrentDimensionsDisplay();
         calculateResults(true);
@@ -1123,7 +1162,9 @@
     function toggleMeasurementSource() {
         if (measurementSource === 'manual') {
             // Check for mock connection state
-            if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
+            const isConnected = document.getElementById('connect-status').className.includes('connected');
+
+            if (isConnected) {
                 measurementSource = 'live';
                 speak("Switched to Live Data mode.");
             } else {
