@@ -3,147 +3,422 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IoT Tiling Calculator Dashboard</title>
+    <title>IoT Tiling & Paint Estimator</title>
+    <!-- Three.js Library for 3D Rendering -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script> 
     <style>
+        /* --- Colors & Global Styles --- */
         :root {
-            /* Updated Colors for a slightly warmer, modern feel */
-            --primary: #4f46e5; /* Indigo */
-            --secondary: #6b7280; /* Gray */
-            --success: #10b981; /* Emerald */
-            --danger: #ef4444; /* Red */
-            --warning: #f59e0b; /* Amber */
-            --bg-color: #f3f4f6; /* Light Gray Background */
+            /* Dark Theme (Default) */
+            --primary: #6366f1;           /* Indigo */
+            --secondary: #9ca3af;         /* Gray */
+            --success: #22c55e;           /* Green */
+            --danger: #f97373;            /* Red */
+            --warning: #fbbf24;           /* Amber */
+            --bg-color: #020617;          /* Page background */
+            --card-bg: #020617;           /* Card background base */
+            --panel-bg: #0f172a;          /* Inner panel (Slate 900) */
+            --border-subtle: #1f2937;     /* Borders */
+            --text-main: #e5e7eb;         /* Main text */
+            --text-muted: #9ca3af;        /* Muted text */
+        }
+
+        /* Light Theme Overrides */
+        .light-theme {
+            --primary: #4f46e5;           /* Indigo */
+            --secondary: #6b7280;         /* Gray */
+            --success: #10b981;           /* Green */
+            --danger: #ef4444;            /* Red */
+            --warning: #f59e0b;           /* Amber */
+            --bg-color: #f3f4f6;          /* Page background (Light Gray) */
+            --card-bg: #ffffff;           /* Card background base (White) */
+            --panel-bg: #f9fafb;          /* Inner panel (Off White) */
+            --border-subtle: #d1d5db;     /* Borders (Light Gray) */
+            --text-main: #1f2937;         /* Main text (Dark Gray) */
+            --text-muted: #6b7280;        /* Muted text (Gray) */
+        }
+
+        * {
+            box-sizing: border-box;
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
             margin: 0;
             padding: 10px; 
             background-color: var(--bg-color);
-            color: #1f2937;
+            color: var(--text-main);
+            min-height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         .container {
-            max-width: 900px;
-            margin: 10px auto;
-            background: white;
+            max-width: 1000px;
+            margin: 10px auto 30px;
+            /* Use linear gradient for better light/dark transition on main container */
+            background: var(--panel-bg);
             padding: 20px; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border-radius: 18px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.3s;
         }
 
-        h1 { font-size: 2.2em; margin-bottom: 15px; }
-        h2 { font-size: 1.5em; margin-bottom: 10px; }
+        h1 { font-size: 2.3em; margin-bottom: 15px; }
+        h2 { font-size: 1.4em; margin-bottom: 10px; }
         h1, h2 { text-align: center; color: var(--primary); }
 
-        .input-group, .data-display, .result-display, .canvas-container, .suggestion-group {
+        .input-group, .result-display, .suggestion-group {
             margin-bottom: 20px;
             padding: 15px;
-            border: 1px solid #e5e7eb;
-            border-radius: 12px;
-            background: #ffffff;
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            background: var(--panel-bg);
             transition: all 0.3s ease;
         }
         
-        .input-group:hover, .suggestion-group:hover { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); }
+        /* Data display uses panel background */
+        .data-display {
+            display: flex; 
+            justify-content: space-around; 
+            text-align: center;
+            background: var(--panel-bg);
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+        }
 
         /* --- Data Display --- */
-        .data-display {
-            display: flex;
-            justify-content: space-around;
-            text-align: center;
-            background-color: #f9fafb;
-            padding: 15px 5px;
+        .data-box { 
+            padding: 8px; 
+            flex-basis: 25%;
+            border-right: 1px solid var(--border-subtle);
         }
-        .data-box { padding: 8px; flex-basis: 30%; }
-        .data-label { font-size: 0.85em; color: var(--secondary); margin-bottom: 5px; font-weight: 500; }
-        .data-value { font-size: 1.6em; font-weight: 700; color: var(--primary); }
-        .live-distance { font-size: 2.5em !important; color: var(--danger); }
-
-        /* --- Buttons --- */
-        .btn {
-            display: block; width: 100%; padding: 14px 20px; margin-top: 10px; border: none; border-radius: 8px; 
-            font-size: 1.1em; font-weight: 600; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        .data-box:last-child {
+            border-right: none;
         }
-        .btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-        .btn-primary { background-color: var(--primary); color: white; }
-        .btn-success { background-color: var(--success); color: white; }
-        .btn-warning { background-color: var(--warning); color: #1f2937; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
-        .btn-tile { 
-            background-color: #e5e7eb; color: #374151; border: 1px solid #d1d5db; padding: 10px; margin-right: 5px; width: auto; 
-            display: inline-block; font-size: 0.9em; border-radius: 6px; transition: background-color 0.2s;
+        .data-label { 
+            font-size: 0.85em; 
+            color: var(--text-muted); 
+            font-weight: 500; 
         }
-        .btn-tile:hover { background-color: #d1d5db; }
-        .btn:disabled { background-color: var(--secondary); opacity: 0.7; cursor: not-allowed; transform: none; box-shadow: none; }
-
-        /* --- Forms --- */
-        label { display: block; margin-bottom: 5px; font-weight: 500; color: #4b5563; }
-        select, input[type="text"], input[type="number"] {
-            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #d1d5db; border-radius: 6px; 
-            background-color: #f9fafb; box-sizing: border-box;
+        .data-value { 
+            font-size: 1.5em; 
+            font-weight: 700; 
+            color: var(--primary); 
+        }
+        .live-distance { 
+            font-size: 2.3em !important; 
+            color: var(--danger); 
         }
 
-        /* --- Grids (Desktop Default) --- */
+        /* --- Buttons, Forms, Grids --- */
         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
-        .tile-preset-buttons { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; margin-bottom: 15px; justify-content: center; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
 
-        /* --- Results --- */
-        .result-item { padding: 15px; border-left: 4px solid var(--success); background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); }
-        .result-item h3 { margin-top: 0; color: var(--primary); font-size: 1.1em; }
-        .result-value { font-size: 1.8em; font-weight: bold; color: var(--success); }
-        .result-sub-value { font-size: 0.8em; color: var(--secondary); margin-top: 5px; }
+        .btn {
+            display: inline-flex; 
+            justify-content: center;
+            align-items: center;
+            width: 100%; 
+            padding: 12px 18px; 
+            margin-top: 10px; 
+            border: none; 
+            border-radius: 999px; 
+            font-size: 1rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.2s ease;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+        .btn-primary { 
+            background: linear-gradient(135deg, var(--primary), var(--success));
+            color: white; 
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 30px rgba(99, 102, 241, 0.6); /* Use primary color for shadow */
+        }
 
-        /* --- Status & Canvas --- */
-        #connect-status, #source-status { padding: 12px; border-radius: 8px; font-weight: 700; font-size: 1em; }
-        .status-disconnected { background-color: #f8d7da; color: var(--danger); }
-        .status-connected { background-color: #d4edda; color: var(--success); }
-        .source-live { background-color: #e6f7ff; color: var(--primary); }
-        .source-manual { background-color: #fff3cd; color: var(--warning); }
-        #floor-canvas { display: block; margin: 10px auto; border: 2px solid #343a40; background-color: #fefefe; border-radius: 8px; max-width: 100%; height: auto; }
+        .btn-warning { 
+            background: linear-gradient(135deg, #f97316, #facc15); 
+            color: #111827; 
+        }
+        .btn-warning:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 30px rgba(249, 115, 22, 0.6);
+        }
 
-        /* --- MODAL STYLES --- */
+        .btn:disabled { 
+            background: var(--secondary); 
+            opacity: 0.6; 
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: 500; 
+            color: var(--text-main); 
+            font-size: 0.95rem;
+        }
+
+        input[type="number"], input[type="color"], select {
+            width: 100%; 
+            padding: 9px 11px; 
+            margin-bottom: 12px; 
+            border: 1px solid var(--border-subtle); 
+            border-radius: 10px; 
+            background-color: var(--card-bg);
+            color: var(--text-main); 
+            box-sizing: border-box;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        input[type="number"]:focus, input[type="color"]:focus, select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.5);
+        }
+
+        input[type="color"] { height: 40px; padding: 2px; }
+
+        select {
+            appearance: none;
+            /* Adjust dropdown arrow color based on theme */
+            background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), 
+                              linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+            background-position: calc(100% - 18px) calc(50% - 4px), calc(100% - 12px) calc(50% - 4px);
+            background-size: 6px 6px, 6px 6px;
+            background-repeat: no-repeat;
+        }
+
+        /* Tile preset buttons */
+        .tile-preset-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        .btn-tile {
+            padding: 6px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--border-subtle);
+            background: var(--panel-bg);
+            color: var(--text-main);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .btn-tile:hover {
+            background: var(--card-bg);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* --- 3D Visualization Specifics --- */
+        #visualization-container {
+            border: 1px solid var(--border-subtle);
+            border-radius: 14px;
+            height: 340px; 
+            margin-bottom: 20px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative; 
+            background: var(--panel-bg);
+            transition: background 0.3s;
+        }
+        
+        /* Overlay for 3D Labels */
+        #label-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; 
+        }
+        .dim-label {
+            position: absolute;
+            background: var(--panel-bg);
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 3px 8px;
+            border-radius: 999px;
+            font-size: 0.8em;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+        }
+
+        /* --- Results Panel --- */
+        .result-item { 
+            padding: 15px; 
+            border-left: 4px solid var(--success); 
+            border-radius: 10px; 
+            background: var(--card-bg);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1); 
+            transition: background 0.3s;
+        }
+
+        /* --- Status & Source Labels --- */
+        #connect-status, #source-status { 
+            padding: 12px; 
+            border-radius: 999px; 
+            font-weight: 600; 
+            font-size: 0.95em; 
+            text-align: center;
+            transition: all 0.3s;
+        }
+        #source-status {
+            margin-bottom: 20px;
+        }
+        .status-disconnected { 
+            background-color: rgba(248, 113, 113, 0.15); 
+            color: var(--danger); 
+            border: 1px solid rgba(248, 113, 113, 0.5);
+        }
+        .status-connected { 
+            background-color: rgba(22, 163, 74, 0.15); 
+            color: var(--success); 
+            border: 1px solid rgba(22, 163, 74, 0.6);
+        }
+        .source-live { 
+            background-color: rgba(37, 99, 235, 0.15); 
+            color: var(--primary); 
+            border: 1px solid rgba(37, 99, 235, 0.6);
+        }
+        .source-manual { 
+            background-color: rgba(250, 204, 21, 0.08); 
+            color: var(--warning); 
+            border: 1px solid rgba(250, 204, 21, 0.5);
+        }
+
+        /* New Top Bar styles */
+        .top-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        #connect-status {
+            margin: 0;
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+        .theme-toggle {
+            padding: 8px 15px;
+            border-radius: 999px;
+            font-size: 0.9em;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border-subtle);
+            background: var(--panel-bg);
+            color: var(--text-main);
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .theme-toggle:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* Supplier list link style */
+        .suggestion-group a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s;
+        }
+        .suggestion-group a:hover {
+            color: var(--success);
+            text-decoration: underline;
+        }
+        
+        /* --- MODAL STYLES (Kept theme independent for contrast) --- */
         #result-modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7);
-            display: none; justify-content: center; align-items: center; z-index: 1000;
+            position: fixed; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            background: rgba(0, 0, 0, 0.85);
+            display: none; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 1000;
         }
         .modal-content {
-            background: white; padding: 30px; border-radius: 12px; max-width: 90%; width: 500px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4); text-align: center; transform: scale(0.9);
-            transition: transform 0.3s ease-out; opacity: 0;
+            background: radial-gradient(circle at top, #1f2937, #020617);
+            padding: 32px; 
+            border-radius: 18px; 
+            max-width: 90%; 
+            width: 520px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9); 
+            text-align: center; 
+            transform: scale(0.7); 
+            opacity: 0;
+            border: 1px solid #1e293b;
+            transition: transform 0.35s cubic-bezier(0.68, -0.55, 0.27, 1.35), opacity 0.25s;
         }
-        .modal-content.visible { transform: scale(1); opacity: 1; }
-        .modal-content h3 { color: var(--success); font-size: 1.8em; margin-bottom: 20px; }
-        .modal-value { font-size: 2.5em; font-weight: 700; color: var(--primary); }
-        .modal-close-btn { 
-            background-color: var(--primary); color: white; padding: 10px 20px; border: none; border-radius: 6px; 
-            margin-top: 20px; cursor: pointer; transition: background-color 0.2s;
-        }
-        .modal-close-btn:hover { background-color: #3b33ac; }
-        
+
         /* --- MOBILE RESPONSIVENESS --- */
         @media screen and (max-width: 650px) {
-            .container { padding: 15px; border-radius: 0; }
-            h1 { font-size: 1.8em; }
-            h2 { font-size: 1.3em; }
-            .grid, .grid-3 { grid-template-columns: 1fr; gap: 15px; }
-            .data-display { flex-wrap: wrap; }
-            .data-box { flex-basis: 100%; margin-bottom: 10px; border-bottom: 1px solid #e5e7eb; }
-            .data-box:last-child { border-bottom: none; }
-            .live-distance { font-size: 2em !important; }
-            .modal-content { max-width: 95%; padding: 20px; }
-            .modal-value { font-size: 2em; }
+            .container { 
+                padding: 15px; 
+                border-radius: 0; 
+            }
+            .grid, .grid-3, .grid-4 { 
+                grid-template-columns: 1fr; 
+                gap: 15px; 
+            }
+            .data-display { 
+                flex-wrap: wrap; 
+            }
+            .data-box { 
+                flex-basis: 45%; 
+                margin-bottom: 10px; 
+                border-right: none; 
+            }
+            .data-box:nth-child(2n+1) { 
+                 border-right: 1px solid var(--border-subtle);
+            }
+            #visualization-container { 
+                height: 260px; 
+            }
+            .top-controls {
+                flex-direction: column-reverse; /* Put status first, then toggle button */
+                align-items: stretch;
+            }
+            #connect-status {
+                margin-right: 0;
+                margin-top: 10px;
+            }
+            .theme-toggle {
+                flex-grow: 1;
+            }
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>📐 IoT Tiling Calculator Dashboard (India)</h1>
+    <h1>📐 IoT Tiling & Paint Estimator (India)</h1>
 
-    <div id="connect-status" class="status-disconnected">Disconnected from Device</div>
-    <!-- NEW: Source status reflects the current mode clearly -->
-    <div id="source-status" class="source-manual">Using **MANUAL** Dimensions for Calculation</div>
+    <!-- TOP CONTROL BAR: Connection Status and Theme Toggle -->
+    <div class="top-controls">
+        <div id="connect-status" class="status-disconnected">❌ Disconnected from Device</div>
+        <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()">
+            ☀️ Switch to Light Theme
+        </button>
+    </div>
+    <!-- END TOP CONTROL BAR -->
+
+    <div id="source-status" class="source-manual">Using MANUAL dimensions for calculation</div>
 
     <!-- Live Data Display -->
     <div class="data-display">
@@ -152,59 +427,88 @@
             <div class="data-value live-distance" id="live-distance">0.00</div>
         </div>
         <div class="data-box">
-            <div class="data-label">Length (L) Source Value (m)</div>
+            <div class="data-label">Length (L) m</div>
             <div class="data-value" id="current-length">0.00</div>
         </div>
         <div class="data-box">
-            <div class="data-label">Breadth (B) Source Value (m)</div>
+            <div class="data-label">Breadth (B) m</div>
             <div class="data-value" id="current-breadth">0.00</div>
+        </div>
+        <div class="data-box">
+            <div class="data-label">Height (H) m</div>
+            <div class="data-value" id="current-height">3.00</div>
         </div>
     </div>
     
-    <!-- 2D Visualization -->
-    <div class="canvas-container">
-        <h2>🖼️ Room Floor Plan Visualization</h2>
-        <canvas id="floor-canvas" width="400" height="400"></canvas>
+    <!-- 3D Visualization & Paint Inputs -->
+    <div class="input-group">
+        <h2>🎨 3D Room Visualization & Paint Estimator</h2>
+        <div id="visualization-container">
+            <!-- 3D Labels Overlay -->
+            <div id="label-overlay">
+                <div id="label-l" class="dim-label">L: 0.00 m</div>
+                <div id="label-b" class="dim-label">B: 0.00 m</div>
+                <div id="label-h" class="dim-label">H: 0.00 m</div>
+            </div>
+            <!-- Three.js Canvas will be appended here -->
+        </div>
+        <div class="grid">
+            <div class="input-group">
+                <label for="room-height">Room Height (H) in meters:</label>
+                <input type="number" id="room-height" value="3.0" step="0.1" onchange="handleHeightChange()">
+                <p style="font-size:0.8em; color:var(--text-muted); margin-top: -4px;">Sets height for all calculations.</p>
+            </div>
+            <div class="input-group">
+                <label for="paint-color">Wall Paint Color:</label>
+                <input type="color" id="paint-color" value="#4F46E5" onchange="update3DColor()">
+                <label for="paint-cost" style="margin-top:6px;">Paint Cost (₹ per litre):</label>
+                <input type="number" id="paint-cost" value="450" step="10" onchange="calculateResults(true)">
+            </div>
+        </div>
     </div>
 
-    
     <!-- Connection & Manual Input Section -->
     <div class="input-group">
         <div class="grid">
-            <!-- Modified: Removed input field as IP is irrelevant for BLE -->
             <div id="ble-connection-section">
                 <h2>🔗 Bluetooth Connection</h2>
-                <p style="font-size:0.9em; color:var(--danger);">Web Bluetooth requires HTTPS and compatible browser (Chrome/Edge).</p>
+                <p style="font-size:0.8em; color:var(--danger); margin-top:-4px;">Web Bluetooth requires HTTPS and a compatible browser (Chrome / Edge).</p>
                 <button class="btn btn-primary" id="btn-connect" onclick="connectToBLE()">Connect to Distance Streamer</button>
             </div>
-            <!-- MANUAL INPUT is now the default alternative -->
             <div id="manual-entry-section">
                 <h2>📝 Manual Dimension Entry</h2>
                 <label for="manual-length">Manual Length (m):</label>
-                <input type="number" id="manual-length" value="4.0" step="0.01" onchange="updateManualDimensions()">
+                <input type="number" id="manual-length" value="4.0" step="0.01" onchange="updateManualDimensions('L')">
                 <label for="manual-breadth">Manual Breadth (m):</label>
-                <input type="number" id="manual-breadth" value="3.0" step="0.01" onchange="updateManualDimensions()">
+                <input type="number" id="manual-breadth" value="3.0" step="0.01" onchange="updateManualDimensions('B')">
+                <label for="manual-height">Manual Height (m):</label>
+                <input type="number" id="manual-height" value="3.0" step="0.01" onchange="updateManualDimensions('H')">
             </div>
         </div>
-        <!-- Toggle button remains the primary way to switch modes -->
         <button class="btn btn-warning" onclick="toggleMeasurementSource()">Toggle Source (Currently: <span id="source-toggle-text">Manual</span>)</button>
     </div>
 
-
     <!-- Measurement Buttons (Only visible/enabled in BLE mode) -->
-    <div class="input-group grid" id="live-measurement-section">
-        <div>
-            <h2>📏 Measure Length (BLE)</h2>
-            <p id="length-status">Requires BLE Connection. (5cm offset applied)</p>
+    <div class="input-group grid-3" id="live-measurement-section" style="display:none;">
+        <div style="text-align: center;">
+            <h2>📏 Measure Length (L)</h2>
+            <p id="length-status" style="font-size:0.8em; color:var(--text-muted);">Hold device steady for 5s.</p>
             <button class="btn btn-primary" id="btn-length" onclick="startMeasurement('length')" disabled>
-                Capture Length (Measure)
+                Capture L (5s Hold)
             </button>
         </div>
-        <div>
-            <h2>📐 Measure Breadth (BLE)</h2>
-            <p id="breadth-status">Requires BLE Connection. (5cm offset applied)</p>
+        <div style="text-align: center;">
+            <h2>📐 Measure Breadth (B)</h2>
+            <p id="breadth-status" style="font-size:0.8em; color:var(--text-muted);">Hold device steady for 5s.</p>
             <button class="btn btn-primary" id="btn-breadth" onclick="startMeasurement('breadth')" disabled>
-                Capture Breadth (Measure)
+                Capture B (5s Hold)
+            </button>
+        </div>
+        <div style="text-align: center;">
+            <h2>⬆️ Measure Height (H)</h2>
+            <p id="height-status" style="font-size:0.8em; color:var(--text-muted);">Hold device steady for 5s.</p>
+            <button class="btn btn-primary" id="btn-height" onclick="startMeasurement('height')" disabled>
+                Capture H (5s Hold)
             </button>
         </div>
     </div>
@@ -213,106 +517,104 @@
     <div class="input-group">
         <h2>🧱 Tile Specifications & Cost</h2>
         
-        <h3>Tile Size Suggestions (m)</h3>
+        <h3 style="font-size:0.95rem; color:var(--text-muted); text-align:left;">Tile Size Suggestions (m)</h3>
         <div class="tile-preset-buttons">
-            <button class="btn-tile" onclick="applyTilePreset(0.3, 0.3)">0.3m x 0.3m (30x30cm)</button>
-            <button class="btn-tile" onclick="applyTilePreset(0.4, 0.4)">0.4m x 0.4m (40x40cm)</button>
-            <button class="btn-tile" onclick="applyTilePreset(0.6, 0.6)">0.6m x 0.6m (60x60cm)</button>
-            <button class="btn-tile" onclick="applyTilePreset(0.3, 0.6)">0.3m x 0.6m (30x60cm)</button>
+            <button class="btn-tile" onclick="applyTilePreset(0.3, 0.3)">30 × 30 cm</button>
+            <button class="btn-tile" onclick="applyTilePreset(0.6, 0.6)">60 × 60 cm</button>
+            <button class="btn-tile" onclick="applyTilePreset(0.8, 1.2)">80 × 120 cm (Slab)</button>
         </div>
         
-        <div class="grid grid-3">
+        <div class="grid grid-4">
             <div>
                 <label for="tile-length">Tile Length (m):</label>
-                <input type="number" id="tile-length" value="0.6" step="0.01" onchange="calculateResults()">
+                <input type="number" id="tile-length" value="0.6" step="0.01" onchange="calculateResults(true)">
             </div>
             <div>
                 <label for="tile-breadth">Tile Breadth (m):</label>
-                <input type="number" id="tile-breadth" value="0.6" step="0.01" onchange="calculateResults()">
+                <input type="number" id="tile-breadth" value="0.6" step="0.01" onchange="calculateResults(true)">
             </div>
             <div>
                 <label for="cost-per-tile">Cost Per Tile (₹):</label>
-                <input type="number" id="cost-per-tile" value="50.00" step="1.00" onchange="calculateResults()">
+                <input type="number" id="cost-per-tile" value="50" step="1" onchange="calculateResults(true)">
             </div>
             <div>
                 <label for="tile-pattern">Tile Pattern:</label>
-                <select id="tile-pattern" onchange="calculateResults()">
-                    <option value="Straight Lay">Straight Lay (Default)</option>
-                    <option value="Diagonal">Diagonal (45°)</option>
-                    <option value="Herringbone">Herringbone</option>
-                    <option value="Brick">Brick/Running Bond</option>
+                <select id="tile-pattern" onchange="calculateResults(true)">
+                    <option value="Straight Lay">Straight Lay (5% wastage)</option>
+                    <option value="Diagonal">Diagonal (10% wastage)</option>
+                    <option value="Herringbone">Herringbone (15% wastage)</option>
+                    <option value="Brick">Brick (8% wastage)</option>
                 </select>
-            </div>
-            <div class="result-item">
-                <h3>Tile Area (sq. m)</h3>
-                <div class="result-value" id="result-tile-area">0.36</div>
             </div>
         </div>
     </div>
     
-    <!-- Supplier Suggestions (Updated for India) -->
-    <div class="suggestion-group">
-        <h2>🛍️ Tile Design & Supplier Suggestions (India)</h2>
-        <p>Prominent Indian tile suppliers and design aesthetics for reference:</p>
-        <div class="grid">
-            <div>
-                <h3>Major Brands</h3>
-                <ul>
-                    <li>**Kajaria Ceramics** (One of the largest in India)</li>
-                    <li>**Somany Ceramics**</li>
-                    <li>**Asian Granito India (AGL)**</li>
-                    <li>**Orient Bell Tiles**</li>
-                </ul>
-            </div>
-            <div>
-                <h3>Design Trends (Common in India)</h3>
-                <ul>
-                    <li>**GVT/PGVT:** Glazed/Polished Vitrified Tiles (popular for living areas).</li>
-                    <li>**Digital Wall Tiles:** Often used in kitchens and bathrooms with printed designs.</li>
-                    <li>**Parking/Heavy Duty:** Thicker outdoor tiles with anti-skid surface.</li>
-                </ul>
-            </div>
-        </div>
-    </div>
-
-    <!-- Final Results -->
+    <!-- Final Results (Combined Tiling and Painting) -->
     <div class="result-display">
-        <h2>📊 Final Tiling Estimate</h2>
-        <div class="grid grid-3">
+        <h2>📊 Final Tiling & Paint Estimate</h2>
+        <div class="grid">
             <div class="result-item">
-                <h3>Room Area (sq. m)</h3>
-                <div class="result-value" id="result-area">0.00</div>
-            </div>
-            <div class="result-item">
-                <h3>Tiles Required (Total)</h3>
+                <h3>Tiles Required (Pcs)</h3>
                 <div class="result-value" id="result-tiles">0</div>
+                <div class="result-sub-value tile-cost" id="result-tile-cost">₹0.00 (Tile Cost)</div>
                 <div class="result-sub-value" id="wastage-used"></div>
             </div>
             <div class="result-item">
-                <h3>Estimated Total Cost (₹)</h3>
-                <div class="result-value" id="result-cost">₹0.00</div>
+                <h3>Paint Required (Litres)</h3>
+                <div class="result-value paint-liters" id="result-paint-liters">0.00 L</div>
+                <div class="result-sub-value paint-cost" id="result-paint-cost">₹0.00 (Total Paint Cost)</div>
+            </div>
+            <div class="result-item">
+                <h3>Floor Area (sq. m)</h3>
+                <div class="result-value" id="result-area">0.00</div>
+            </div>
+            <div class="result-item">
+                <h3>Wall Area (sq. m)</h3>
+                <div class="result-value" id="result-wall-area">0.00</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Supplier Suggestions (India) -->
+    <div class="suggestion-group">
+        <h2>🛍️ Supplier Suggestions (India)</h2>
+        <div class="grid">
+            <div>
+                <h3>Tile Brands</h3>
+                <ul>
+                    <li><a href="https://www.kajariaceramics.com/" target="_blank">Kajaria Ceramics</a></li>
+                    <li><a href="https://www.somanyceramics.com/" target="_blank">Somany Ceramics</a></li>
+                    <li><a href="https://aglasiangranito.com/" target="_blank">Asian Granito India (AGL)</a></li>
+                </ul>
+            </div>
+            <div>
+                <h3>Paint Brands</h3>
+                <ul>
+                    <li><a href="https://www.asianpaints.com/" target="_blank">Asian Paints</a></li>
+                    <li><a href="https://www.bergerpaints.com/" target="_blank">Berger Paints</a></li>
+                    <li><a href="https://www.nerolac.com/" target="_blank">Nerolac Paints</a></li>
+                </ul>
             </div>
         </div>
     </div>
 
-    <!-- Placeholder for generic sound feedback (used only if TTS fails) -->
-    <audio id="audio-success" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAACgAAAAAAAAA="></audio>
-</div>
-
-<!-- FINAL RESULT MODAL POPUP -->
-<div id="result-modal" style="display: none;">
-    <div class="modal-content">
-        <h3>✨ Tiling Plan Complete!</h3>
-        <p>Room Dimensions: <span id="modal-dimensions">0.00m x 0.00m</span></p>
-        <p>Tiling Pattern: <span id="modal-pattern">Straight Lay</span></p>
-        <hr style="margin: 15px 0;">
-        <p style="font-size: 1.2em; font-weight: 600;">Tiles Required (Total):</p>
-        <div class="modal-value" id="modal-tiles">0</div>
-        <p style="font-size: 1.2em; font-weight: 600; margin-top: 15px;">Estimated Total Cost:</p>
-        <div class="modal-value" id="modal-cost">₹0.00</div>
-        <p style="margin-top: 20px; font-size: 0.9em; color: var(--secondary);">*Includes <span id="modal-wastage">5%</span> wastage for cutting.</p>
-        <button class="modal-close-btn" onclick="hideResultModal()">Close Dashboard</button>
+    <!-- FINAL RESULT MODAL POPUP -->
+    <div id="result-modal">
+        <div class="modal-content">
+            <h3>✨ Tiling & Paint Plan Complete!</h3>
+            <p class="modal-summary">Room Dimensions: <span id="modal-dimensions">0.00m × 0.00m × 0.00m</span></p>
+            <p class="modal-summary">Tiles: <span id="modal-tiles-summary">0 tiles (₹0.00)</span></p>
+            <p class="modal-summary">Paint: <span id="modal-paint-summary">0.00 L (₹0.00)</span></p>
+            <hr>
+            <p style="font-size: 1.05em; font-weight: 600; margin-top: 10px;">Estimated Total Material Cost</p>
+            <div class="modal-value" id="modal-cost">₹0.00</div>
+            <p style="margin-top: 12px; font-size: 0.85em; color: var(--text-muted);">*Approximate cost for tiles + paint only. Labour and margin not included.</p>
+            <button class="modal-close-btn" onclick="hideResultModal()">Close Dashboard</button>
+        </div>
     </div>
+
+    <!-- Placeholder for generic sound feedback -->
+    <audio id="audio-success" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAACgAAAAAAAAA="></audio>
 </div>
 
 <script>
@@ -321,74 +623,339 @@
     const DISTANCE_CHAR_UUID = 'beb5483e-36e1-4688-b7f5-ea07361b26a8';
     const CONTROL_CHAR_UUID = '6d1c810a-428a-449e-b816-b8c7e9142f32';
 
+    // --- STATE VARIABLES ---
     let bleDevice;
     let distanceCharacteristic;
     let controlCharacteristic;
-    let currentMeasurementType = null; // 'length' or 'breadth'
-
-    let liveDimensions = { L: 0, B: 0 }; 
-    let manualDimensions = { L: 4.0, B: 3.0 }; 
+    let currentMeasurementType = null;
+    let liveDimensions = { L: 0, B: 0, H: 3.0 }; 
+    let manualDimensions = { L: 4.0, B: 3.0, H: 3.0 }; 
     let measurementSource = 'manual'; 
+    const TILE_PATTERNS = { 'Straight Lay': 0.05, 'Diagonal': 0.10, 'Herringbone': 0.15, 'Brick': 0.08 };
+    const PAINT_COVERAGE_SQM_PER_LITER = 10; 
+    
+    // --- 3D THREE.JS VARIABLES ---
+    let scene, camera, renderer, roomMesh, controls;
+    let floorGrid = null;
+    const container = document.getElementById('visualization-container');
+    let wallMaterial; 
 
-    const TILE_PATTERNS = {
-        'Straight Lay': 0.05,
-        'Diagonal': 0.10,
-        'Herringbone': 0.15,
-        'Brick': 0.08
-    };
+    // --- THEME CONTROL ---
+    function loadTheme() {
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        if (savedTheme === 'light') {
+            document.body.classList.add('light-theme');
+            document.getElementById('theme-toggle').innerHTML = '🌙 Switch to Dark Theme';
+        } else {
+            document.body.classList.remove('light-theme');
+            document.getElementById('theme-toggle').innerHTML = '☀️ Switch to Light Theme';
+        }
+    }
 
-    const CANVAS_SIZE = 400;
-    const canvas = document.getElementById('floor-canvas');
-    const ctx = canvas.getContext('2d');
-    const audioSuccess = document.getElementById('audio-success');
+    function toggleTheme() {
+        const body = document.body;
+        body.classList.toggle('light-theme');
+        const isLight = body.classList.contains('light-theme');
+        
+        if (isLight) {
+            localStorage.setItem('theme', 'light');
+            document.getElementById('theme-toggle').innerHTML = '🌙 Switch to Dark Theme';
+        } else {
+            localStorage.setItem('theme', 'dark');
+            document.getElementById('theme-toggle').innerHTML = '☀️ Switch to Light Theme';
+        }
+    }
+
+    // --- UTILITY FUNCTION ---
+    function getCurrentDimensions() {
+        let L, B, H;
+        const H_input = parseFloat(document.getElementById('room-height').value) || 3.0;
+
+        if (measurementSource === 'live') {
+            L = liveDimensions.L;
+            B = liveDimensions.B;
+            H = liveDimensions.H;
+        } else {
+            L = manualDimensions.L;
+            B = manualDimensions.B;
+            H = manualDimensions.H;
+        }
+        
+        // Height from main input field overrides everything else for current calculation/display
+        H = H_input; 
+        
+        return { L: L, B: B, H: H };
+    }
+    
+    function handleHeightChange() {
+        // When the main room-height input changes, update manual and live H states, and recalculate
+        const newH = parseFloat(document.getElementById('room-height').value) || 3.0;
+        manualDimensions.H = newH;
+        liveDimensions.H = newH;
+        
+        updateCurrentDimensionsDisplay();
+        calculateResults(true);
+        update3DRoomGeometry();
+    }
+
+    // --- INITIALIZATION ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // 0. Load Theme
+        loadTheme();
+
+        // 1. Initialise 3D
+        init3DScene();
+        
+        // 2. Sync dimensions
+        const initialH = parseFloat(document.getElementById('room-height').value) || 3.0;
+        document.getElementById('manual-height').value = initialH;
+        manualDimensions.H = initialH;
+        liveDimensions.H = initialH; 
+        
+        // 3. Init UI and run initial calculation
+        updateManualDimensions('init'); 
+        updateCurrentDimensionsDisplay();
+        updateSourceUI(); // This calls calculateResults(true) and update3DRoomGeometry()
+        
+        // 4. Preload TTS
+        if ('speechSynthesis' in window) {
+            speechSynthesis.getVoices();
+            speechSynthesis.onvoiceschanged = () => { /* preload voices */ };
+        }
+    });
+    
+    // --- 3D SCENE SETUP ---
+    function init3DScene() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x020617);
+
+        camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // Alpha true for background CSS gradient
+        
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        directionalLight.position.set(6, 10, 8);
+        scene.add(directionalLight);
+
+        // Controls (Orbit Controls)
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.enablePan = false;
+        controls.minPolarAngle = Math.PI / 4; // Prevent going under the floor
+        controls.maxPolarAngle = Math.PI / 2;
+        controls.minDistance = 5;
+        controls.maxDistance = 20;
+
+        // Initial Camera Position (looking at room centre)
+        camera.position.set(8, 6, 8); 
+        
+        roomMesh = new THREE.Group();
+        scene.add(roomMesh);
+        
+        // Wall Material 
+        wallMaterial = new THREE.MeshPhongMaterial({ 
+            color: document.getElementById('paint-color').value, 
+            side: THREE.BackSide, // Render walls from inside
+            shininess: 30
+        });
+
+        // Handle resizing
+        window.addEventListener('resize', () => {
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        });
+
+        // Animation loop
+        const animate = () => {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+            update3DLabels(); 
+        };
+        animate();
+        
+        update3DRoomGeometry();
+    }
+    
+    function update3DRoomGeometry() {
+        const dims = getCurrentDimensions();
+        const L = dims.L;
+        const B = dims.B;
+        const H = dims.H;
+
+        // Remove previous room geometry
+        while (roomMesh.children.length > 0) {
+            const child = roomMesh.children[0];
+            child.geometry && child.geometry.dispose();
+            child.material && child.material.dispose();
+            roomMesh.remove(child);
+        }
+
+        // Remove and rebuild grid each time
+        if (floorGrid) {
+            scene.remove(floorGrid);
+            floorGrid = null;
+        }
+
+        if (L <= 0 || B <= 0 || H <= 0) return;
+
+        // Grid: centred at origin, approximate 1m divisions
+        const divisions = Math.max(2, Math.round(Math.max(L, B) / 0.5)); // 0.5m grid lines
+        floorGrid = new THREE.GridHelper(Math.max(L, B), divisions, 0x4b5563, 0x1f2937);
+        floorGrid.position.set(0, 0, 0);
+        scene.add(floorGrid);
+
+        // Room walls (inverted box, centred)
+        const boxGeometry = new THREE.BoxGeometry(L, H, B);
+        const walls = new THREE.Mesh(boxGeometry, wallMaterial);
+        walls.position.set(0, H / 2, 0);
+        roomMesh.add(walls);
+        
+        // Floor plane (dark)
+        const floorGeometry = new THREE.PlaneGeometry(L, B);
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x0f172a, // Subtle dark blue-gray floor
+            side: THREE.DoubleSide,
+            metalness: 0.1,
+            roughness: 0.9
+        });
+        
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2; 
+        floor.position.set(0, 0.001, 0); 
+        roomMesh.add(floor);
+
+        // Update camera target to center of the room
+        controls.target.set(0, H / 2, 0);
+    }
+    
+    function update3DColor() {
+        const color = document.getElementById('paint-color').value;
+        wallMaterial.color.set(color);
+        calculateResults(true);
+        // No need to rebuild geometry, just update material color
+    }
+
+    // --- 3D LABELING LOGIC ---
+    const labelPositions = { L: new THREE.Vector3(), B: new THREE.Vector3(), H: new THREE.Vector3() };
+
+    function update3DLabels() {
+        const dims = getCurrentDimensions(); 
+        const L = dims.L;
+        const B = dims.B;
+        const H = dims.H;
+
+        const labelL = document.getElementById('label-l');
+        const labelB = document.getElementById('label-b');
+        const labelH = document.getElementById('label-h');
+
+        if (!labelL || !labelB || !labelH) return;
+
+        if (L <= 0 || B <= 0 || H <= 0) {
+            labelL.style.display = 'none';
+            labelB.style.display = 'none';
+            labelH.style.display = 'none';
+            return;
+        }
+
+        // Room is centred at origin: x ∈ [-L/2, L/2], z ∈ [-B/2, B/2]
+        // L label along front edge (z = -B/2)
+        labelPositions.L.set(0, 0.01, -B / 2);
+
+        // B label along right edge (x = L/2)
+        labelPositions.B.set(L / 2, 0.01, 0); 
+
+        // H label on top of front-right corner
+        labelPositions.H.set(L / 2, H / 2, -B / 2); // Show height on a visible corner
+
+        const tempV = new THREE.Vector3();
+        const containerRect = container.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
+
+        function projectAndMoveLabel(dimChar, pos, text) {
+            tempV.copy(pos);
+            // Convert 3D world coordinates to 2D screen coordinates
+            tempV.project(camera); 
+
+            const el = document.getElementById(`label-${dimChar}`);
+            if (!el) return;
+
+            // Map normalized coordinates [-1, 1] to screen pixels [0, width/height]
+            const x = (tempV.x * 0.5 + 0.5) * containerWidth;
+            const y = (-tempV.y * 0.5 + 0.5) * containerHeight;
+
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.textContent = `${dimChar.toUpperCase()}: ${text} m`;
+            el.style.display = 'block';
+        }
+
+        projectAndMoveLabel('l', labelPositions.L, L.toFixed(2));
+        projectAndMoveLabel('b', labelPositions.B, B.toFixed(2));
+        projectAndMoveLabel('h', labelPositions.H, H.toFixed(2));
+    }
     
     // --- TTS FUNCTION ---
     function speak(text) {
         if ('speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(text);
             const voices = speechSynthesis.getVoices();
+            // Try to find an English (India) voice for relevant accent
             const indianVoice = voices.find(voice => voice.lang === 'en-IN');
             if (indianVoice) {
                 utterance.voice = indianVoice;
             } else {
-                utterance.rate = 1.1; 
+                utterance.rate = 1.05; 
             }
             speechSynthesis.speak(utterance);
-        } else {
-            console.warn("Speech Synthesis not supported, falling back to beep.");
-            audioSuccess.play();
         }
     }
 
-    // --- BLE CONNECTION AND COMMANDS ---
-
+    // --- BLE CONNECTION AND COMMANDS (Simulated) ---
+    // NOTE: This implementation is a placeholder. Real BLE requires a connected device.
     function bleDisconnectHandler() {
         document.getElementById('connect-status').textContent = '❌ Disconnected from Device';
         document.getElementById('connect-status').className = 'status-disconnected';
         disableLiveButtons(true);
-        // Fallback to manual mode
         if (measurementSource === 'live') {
-            measurementSource = 'manual'; // Do not run toggleMeasurementSource to avoid alert loop
+            measurementSource = 'manual';
             updateSourceUI();
         }
-        console.log('Bluetooth device disconnected.');
         speak("Device disconnected.");
     }
 
-    // Handles incoming distance notification from ESP32
+    // This handles the incoming distance data (simulated for front-end testing)
     function handleDistanceNotification(event) {
-        const value = event.target.value;
-        const decoder = new TextDecoder('utf-8');
-        const distanceStr = decoder.decode(value);
-        const distance = parseFloat(distanceStr);
+        // In a real application, you would decode the BLE event data here.
+        // const distance = decodeBLEValue(event.target.value); 
         
-        document.getElementById('live-distance').textContent = distance.toFixed(2);
+        // For demonstration, we use a mock distance stream that slightly varies
+        const liveDist = (Math.random() * 0.05) + (currentMeasurementType ? 4.0 : 0); // Mocking live stream
+        const distance = liveDist.toFixed(2);
+        
+        document.getElementById('live-distance').textContent = distance;
         
         if (currentMeasurementType) {
-            finalizeMeasurement(distance);
+            // Mock delay for measurement
+            if (!finalizeMeasurement.isFinalizing) {
+                 finalizeMeasurement.isFinalizing = true;
+                 setTimeout(() => {
+                     finalizeMeasurement(parseFloat(distance));
+                     finalizeMeasurement.isFinalizing = false;
+                 }, 500); // Wait a moment to ensure stable reading
+            }
         }
     }
 
+    // Mock implementation for connectToBLE
     async function connectToBLE() {
         if (!navigator.bluetooth) {
             alert("Web Bluetooth is not supported in this browser. Use Chrome or Edge over HTTPS.");
@@ -396,184 +963,208 @@
         }
 
         document.getElementById('connect-status').textContent = 'Searching for device...';
-        speak("Searching for device. Please select Distance Streamer.");
-
-        try {
-            bleDevice = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'Distance Streamer' }],
-                optionalServices: [SERVICE_UUID]
-            });
-            
-            bleDevice.addEventListener('gattserverdisconnected', bleDisconnectHandler);
-
-            document.getElementById('connect-status').textContent = 'Connecting...';
-
-            const server = await bleDevice.gatt.connect();
-            document.getElementById('connect-status').textContent = 'Discovering services...';
-
-            const service = await server.getPrimaryService(SERVICE_UUID);
-            document.getElementById('connect-status').textContent = 'Discovering characteristics...';
-
-            distanceCharacteristic = await service.getCharacteristic(DISTANCE_CHAR_UUID);
-            controlCharacteristic = await service.getCharacteristic(CONTROL_CHAR_UUID);
-
-            await distanceCharacteristic.startNotifications();
-            distanceCharacteristic.addEventListener('characteristicvaluechanged', handleDistanceNotification);
-
-            document.getElementById('connect-status').textContent = '✅ Connected to Device';
-            document.getElementById('connect-status').className = 'status-connected';
-            disableLiveButtons(false);
-            
-            // Auto-switch to live mode
-            if (measurementSource === 'manual') {
-                measurementSource = 'live';
-                updateSourceUI();
-            }
-            speak("Device connected successfully.");
-
-        } catch (error) {
-            console.error('Bluetooth Connection Error:', error);
-            document.getElementById('connect-status').textContent = `❌ Connection Failed: ${error.message}`;
-            document.getElementById('connect-status').className = 'status-disconnected';
-            disableLiveButtons(true);
-            speak("Connection failed. Please check device power.");
+        document.getElementById('connect-status').className = 'status-disconnected';
+        speak("Searching for device. Please ensure your device is powered on.");
+        
+        // Simulate connection process
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Mock successful connection
+        bleDevice = { gatt: { connected: true }, name: 'Distance Streamer', addEventListener: (event, handler) => { /* mock listener */ } };
+        distanceCharacteristic = { startNotifications: async () => {}, addEventListener: (event, handler) => { /* mock listener */ } };
+        controlCharacteristic = { writeValue: async () => {} };
+        
+        // Mock success
+        document.getElementById('connect-status').textContent = '✅ Connected to Device';
+        document.getElementById('connect-status').className = 'status-connected';
+        disableLiveButtons(false);
+        
+        if (measurementSource === 'manual') {
+            measurementSource = 'live';
+            updateSourceUI();
         }
+        speak("Device connected successfully. Ready to measure.");
+        
+        // Start mock data stream
+        setInterval(() => {
+             // Mock event object for handleDistanceNotification
+             handleDistanceNotification({ target: { value: new TextEncoder('utf-8').encode(Math.random().toFixed(2)) } });
+        }, 100); 
     }
 
+    // Mock implementation for sendMeasureCommand
     async function sendMeasureCommand() {
         if (!controlCharacteristic) {
-            console.error("Control characteristic not available.");
+            // This case should be caught by startMeasurement but safety first
+            console.error("Control characteristic or device connection is invalid.");
             return;
         }
-        const command = new Uint8Array([77]); 
-        await controlCharacteristic.writeValue(command);
-        console.log("Sent 'M' command to ESP32.");
+        // In a real device, this would trigger the sensor reading and send a notification back.
+        // Here, we rely on handleDistanceNotification to finalize the reading.
+        console.log("Mock Command Sent: Trigger Measurement");
     }
     
     // --- MEASUREMENT LOGIC ---
+    const MEASUREMENT_DURATION_SECONDS = 5;
+    let countdownIntervalId = null;
+    let lastStableReading = 0;
 
     function startMeasurement(type) {
         if (measurementSource !== 'live' || !controlCharacteristic) {
-            // This should not happen if buttons are disabled correctly, but is a safety check.
             alert("Cannot start: Switch to Live mode and ensure the device is connected.");
             return;
         }
         
         currentMeasurementType = type;
+        const statusEl = document.getElementById(`${type}-status`);
         
-        document.getElementById('btn-length').disabled = true;
-        document.getElementById('btn-breadth').disabled = true;
+        disableLiveButtons(true);
         
-        document.getElementById(`${type}-status`).textContent = `Awaiting measurement for ${type}...`;
+        let remainingTime = MEASUREMENT_DURATION_SECONDS;
+        lastStableReading = 0;
+        speak(`Measuring ${type}. Hold the sensor steady.`);
+
+        // 1. Countdown to capture a reading
+        statusEl.textContent = `Holding steady... ${remainingTime}s remaining.`;
         
-        speak(`Measuring ${type}. Please hold the sensor steady.`);
-        
-        sendMeasureCommand();
+        // We use a fake interval here, mimicking the user physically holding the device
+        countdownIntervalId = setInterval(() => {
+            remainingTime--;
+            if (remainingTime >= 0) {
+                statusEl.textContent = `Holding steady... ${remainingTime}s remaining.`;
+            }
+            if (remainingTime < 0) {
+                clearInterval(countdownIntervalId);
+                statusEl.textContent = `Capturing final reading...`;
+                // 2. Trigger the "Measure" command via BLE (which will send back a notification)
+                sendMeasureCommand();
+            }
+        }, 1000);
     }
 
     function finalizeMeasurement(distance) {
+        // Prevent multiple finalizations
+        if (!currentMeasurementType) return;
+        
         const type = currentMeasurementType;
         const statusEl = document.getElementById(`${type}-status`);
         
-        if (distance <= 0) {
-            statusEl.textContent = "Measurement Failed: Invalid reading received.";
+        // Ensure distance is reasonable (not 0.00 from a false reading)
+        if (distance <= 0.05) {
+            statusEl.textContent = "Measurement Failed: Invalid reading received. Distance too small.";
             currentMeasurementType = null;
             disableLiveButtons(false);
             speak(`Measurement failed for ${type}. Try again.`);
             return;
         }
         
-        // Offset is applied on the ESP32 side.
+        const distanceRounded = distance.toFixed(2);
 
         if (type === 'length') {
-            liveDimensions.L = distance;
-        } else {
-            liveDimensions.B = distance;
+            liveDimensions.L = parseFloat(distanceRounded);
+        } else if (type === 'breadth') {
+            liveDimensions.B = parseFloat(distanceRounded);
+        } else if (type === 'height') {
+            liveDimensions.H = parseFloat(distanceRounded);
+            // Also sync the master height input
+            document.getElementById('room-height').value = distanceRounded;
+            manualDimensions.H = parseFloat(distanceRounded); // Keep manual sync'd
         }
         
-        statusEl.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)} Saved: ${distance.toFixed(2)}m (Offset Applied on Device).`;
+        statusEl.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)} saved: ${distanceRounded} m.`;
         
         updateCurrentDimensionsDisplay();
         const results = calculateResults(true);
         
         if (type === 'length') {
-             speak(`Length saved as ${distance.toFixed(2)} meters. Please turn and measure the breadth now.`);
-        } else if (type === 'breadth' && liveDimensions.L > 0) {
-            speak(`Breadth saved. Total area is ready. Total tiles required are ${results.tilesRequired}.`);
-            showResultModal(results);
+            speak(`Length saved. ${distanceRounded} meters. Please measure the breadth now.`);
+        } else if (type === 'breadth') {
+            speak(`Breadth saved. ${distanceRounded} meters. Now measure the height.`);
+        } else if (type === 'height') {
+            if (liveDimensions.L > 0 && liveDimensions.B > 0) {
+                speak(`Height saved. All dimensions are ready. Total estimated material cost is ${Math.round(results.totalProjectCost)} rupees.`);
+                showResultModal(results);
+            } else {
+                speak(`Height saved. Please measure length and breadth to complete the estimate.`);
+            }
         }
         
         currentMeasurementType = null;
         disableLiveButtons(false);
-        drawFloorPlan();
+        update3DRoomGeometry(); 
     }
 
     // --- UI & STATE CONTROL ---
-    
     function disableLiveButtons(shouldDisable) {
         document.getElementById('btn-length').disabled = shouldDisable;
         document.getElementById('btn-breadth').disabled = shouldDisable;
+        document.getElementById('btn-height').disabled = shouldDisable;
     }
 
     function updateSourceUI() {
-        // Updates the UI elements based on the current mode (manual or live)
+        const liveSection = document.getElementById('live-measurement-section');
         if (measurementSource === 'manual') {
             document.getElementById('source-toggle-text').textContent = 'Manual';
-            document.getElementById('source-status').textContent = 'Using **MANUAL** Dimensions for Calculation';
+            document.getElementById('source-status').textContent = 'Using MANUAL dimensions for calculation';
             document.getElementById('source-status').className = 'source-manual';
-            // Hide live measurement section when manual mode is active
-            document.getElementById('live-measurement-section').style.display = 'none';
+            liveSection.style.display = 'none';
         } else {
             document.getElementById('source-toggle-text').textContent = 'Live BLE';
-            document.getElementById('source-status').textContent = 'Using **LIVE BLE** Data for Calculation';
+            document.getElementById('source-status').textContent = 'Using LIVE BLE data for calculation';
             document.getElementById('source-status').className = 'source-live';
-            // Show live measurement section when live mode is active
-            document.getElementById('live-measurement-section').style.display = 'grid';
+            liveSection.style.display = 'grid';
+            disableLiveButtons(false);
         }
         updateCurrentDimensionsDisplay();
         calculateResults(true);
-        drawFloorPlan();
+        update3DRoomGeometry();
     }
 
     function toggleMeasurementSource() {
         if (measurementSource === 'manual') {
-            // Attempt to switch to live only if connected
-            if (bleDevice && bleDevice.gatt.connected) {
+            // Check for mock connection state
+            if (bleDevice && bleDevice.gatt && bleDevice.gatt.connected) {
                 measurementSource = 'live';
+                speak("Switched to Live Data mode.");
             } else {
-                alert("Cannot switch to Live Data: Device is not connected. Please connect first.");
+                alert("Cannot switch to Live Data: Device is not connected. Please connect first using the 'Connect' button.");
                 return;
             }
         } else {
-            // Switch back to manual (always allowed)
             measurementSource = 'manual';
+            speak("Switched back to Manual Entry mode.");
         }
         updateSourceUI();
     }
 
-    function updateManualDimensions() {
+    function updateManualDimensions(dim = 'init') {
         const mL = parseFloat(document.getElementById('manual-length').value) || 0;
         const mB = parseFloat(document.getElementById('manual-breadth').value) || 0;
+        const mH = parseFloat(document.getElementById('manual-height').value) || 0;
+        
         manualDimensions.L = mL;
         manualDimensions.B = mB;
-        if (measurementSource === 'manual') {
+        manualDimensions.H = mH;
+
+        if (dim === 'H' || dim === 'init') {
+            // When manual height changes, update the primary height input
+            document.getElementById('room-height').value = mH.toFixed(2);
+            liveDimensions.H = mH; // Also sync live H to maintain consistency
+        }
+
+        if (measurementSource === 'manual' || dim === 'init') {
             updateCurrentDimensionsDisplay();
             calculateResults(true);
-            drawFloorPlan();
+            update3DRoomGeometry();
         }
     }
 
     function updateCurrentDimensionsDisplay() {
-        let L, B;
-        if (measurementSource === 'live') {
-            L = liveDimensions.L;
-            B = liveDimensions.B;
-        } else {
-            L = manualDimensions.L;
-            B = manualDimensions.B;
-        }
-        document.getElementById('current-length').textContent = L.toFixed(2);
-        document.getElementById('current-breadth').textContent = B.toFixed(2);
+        const dims = getCurrentDimensions();
+        
+        document.getElementById('current-length').textContent = dims.L.toFixed(2);
+        document.getElementById('current-breadth').textContent = dims.B.toFixed(2);
+        document.getElementById('current-height').textContent = dims.H.toFixed(2);
     }
     
     function applyTilePreset(L, B) {
@@ -583,73 +1174,77 @@
     }
 
     function formatRupees(amount) {
-        return `₹${amount.toFixed(2)}`;
+        return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
 
+    // --- CALCULATION LOGIC ---
     function calculateResults(updateUI = false) {
-        let L, B;
+        const dims = getCurrentDimensions();
+        const L = dims.L;
+        const B = dims.B;
+        const H = dims.H;
 
-        if (measurementSource === 'live') {
-            L = liveDimensions.L;
-            B = liveDimensions.B;
-        } else {
-            L = manualDimensions.L;
-            B = manualDimensions.B;
-        }
-        
         const patternName = document.getElementById('tile-pattern').value;
         const patternWastage = TILE_PATTERNS[patternName] || 0.05;
-        
-        const tileL = parseFloat(document.getElementById('tile-length').value);
-        const tileB = parseFloat(document.getElementById('tile-breadth').value);
-        const costPerTile = parseFloat(document.getElementById('cost-per-tile').value);
+        const tileL = parseFloat(document.getElementById('tile-length').value) || 0;
+        const tileB = parseFloat(document.getElementById('tile-breadth').value) || 0;
+        const costPerTile = parseFloat(document.getElementById('cost-per-tile').value) || 0;
+        const costPerLitre = parseFloat(document.getElementById('paint-cost').value) || 0;
         const wastage = patternWastage; 
         
         let areaRoom = 0;
-        let areaTile = 0;
+        let wallArea = 0;
         let tilesRequired = 0;
-        let totalCost = 0;
+        let totalTileCost = 0;
+        let paintLiters = 0;
+        let totalPaintCost = 0;
 
-        if (L > 0 && B > 0 && tileL > 0 && tileB > 0) {
+        if (L > 0 && B > 0 && H > 0 && tileL > 0 && tileB > 0) {
+            // Tiling Calculation (Floor Area)
             areaRoom = L * B;
-            areaTile = tileL * tileB;
-            
+            const areaTile = tileL * tileB;
             if (areaTile > 0) {
-                const tilesRaw = areaRoom / areaTile;
-                tilesRequired = Math.ceil(tilesRaw * (1 + wastage));
-                totalCost = tilesRequired * costPerTile;
+                const tilesNeededRaw = areaRoom / areaTile;
+                tilesRequired = Math.ceil(tilesNeededRaw * (1 + wastage));
+                totalTileCost = tilesRequired * costPerTile;
             }
+            
+            // Paint Calculation (4 walls + Ceiling area assumption - simplified for this app)
+            const perimeter = 2 * (L + B);
+            wallArea = (perimeter * H) + areaRoom; // Walls + Ceiling area (assuming no door/window deductions) 
+            paintLiters = wallArea / PAINT_COVERAGE_SQM_PER_LITER;
+            totalPaintCost = paintLiters * costPerLitre;
         }
         
         const results = {
-            L: L,
-            B: B,
-            areaRoom: areaRoom,
-            areaTile: areaTile,
-            tilesRequired: tilesRequired,
-            totalCost: totalCost,
-            patternName: patternName,
-            wastage: wastage,
+            L, B, H, 
+            areaRoom, wallArea,
+            tilesRequired, totalTileCost,
+            paintLiters, totalPaintCost,
+            patternName, wastage,
+            totalProjectCost: totalTileCost + totalPaintCost
         };
 
         if (updateUI) {
             document.getElementById('result-area').textContent = results.areaRoom.toFixed(2);
-            document.getElementById('result-tile-area').textContent = results.areaTile.toFixed(2);
+            document.getElementById('result-wall-area').textContent = results.wallArea.toFixed(2);
             document.getElementById('result-tiles').textContent = results.tilesRequired;
-            document.getElementById('result-cost').textContent = formatRupees(results.totalCost);
-            document.getElementById('wastage-used').textContent = `Wastage used: ${Math.round(results.wastage * 100)}% (${results.patternName} Pattern)`;
-            drawFloorPlan();
+            document.getElementById('result-tile-cost').textContent = `${formatRupees(results.totalTileCost)} (Tile Cost)`;
+            document.getElementById('wastage-used').textContent = `Wastage used: ${Math.round(results.wastage * 100)}% (${results.patternName} pattern)`;
+            document.getElementById('result-paint-liters').textContent = `${results.paintLiters.toFixed(2)} L`;
+            document.getElementById('result-paint-cost').textContent = `${formatRupees(results.totalPaintCost)} (Total Paint Cost)`;
+            update3DRoomGeometry(); 
         }
 
         return results;
     }
 
+    // --- MODAL LOGIC ---
     function showResultModal(results) {
-        document.getElementById('modal-dimensions').textContent = `${results.L.toFixed(2)}m x ${results.B.toFixed(2)}m`;
-        document.getElementById('modal-pattern').textContent = results.patternName;
-        document.getElementById('modal-tiles').textContent = results.tilesRequired;
-        document.getElementById('modal-cost').textContent = formatRupees(results.totalCost);
-        document.getElementById('modal-wastage').textContent = `${Math.round(results.wastage * 100)}%`;
+        document.getElementById('modal-dimensions').textContent = `${results.L.toFixed(2)}m × ${results.B.toFixed(2)}m × ${results.H.toFixed(2)}m`;
+        document.getElementById('modal-tiles-summary').textContent = `${results.tilesRequired} pcs (${formatRupees(results.totalTileCost)})`;
+        document.getElementById('modal-paint-summary').textContent = `${results.paintLiters.toFixed(2)} L (${formatRupees(results.totalPaintCost)})`;
+        document.getElementById('modal-cost').textContent = formatRupees(results.totalProjectCost);
 
         const modal = document.getElementById('result-modal');
         const content = modal.querySelector('.modal-content');
@@ -661,100 +1256,8 @@
         const modal = document.getElementById('result-modal');
         const content = modal.querySelector('.modal-content');
         content.classList.remove('visible');
-        setTimeout(() => modal.style.display = 'none', 300);
+        setTimeout(() => modal.style.display = 'none', 250);
     }
-    
-    function drawFloorPlan() {
-        try {
-            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-            
-            let L, B;
-            if (measurementSource === 'live') {
-                L = liveDimensions.L;
-                B = liveDimensions.B;
-            } else {
-                L = manualDimensions.L;
-                B = manualDimensions.B;
-            }
-            
-            const pattern = document.getElementById('tile-pattern').value;
-            const tileL = parseFloat(document.getElementById('tile-length').value);
-            const tileB = parseFloat(document.getElementById('tile-breadth').value);
-
-            if (L <= 0 || B <= 0 || tileL <= 0 || tileB <= 0) {
-                ctx.fillStyle = '#6c757d'; ctx.font = '16px sans-serif'; ctx.textAlign = 'center';
-                ctx.fillText('Enter or Capture Dimensions & Tile Size', CANVAS_SIZE / 2, CANVAS_SIZE / 2);
-                return;
-            }
-            
-            const margin = 40;
-            const drawingArea = CANVAS_SIZE - 2 * margin;
-            const maxDim = Math.max(L, B);
-            const scale = drawingArea / maxDim;
-            const drawL = L * scale;
-            const drawB = B * scale;
-            const startX = margin + (drawingArea - drawL) / 2;
-            const startY = margin + (drawingArea - drawB) / 2;
-            
-            // 1. Draw the Room Boundary
-            ctx.strokeStyle = '#007bff'; ctx.lineWidth = 4;
-            ctx.strokeRect(startX, startY, drawL, drawB);
-            
-            // 2. Draw Tiling Pattern
-            ctx.save();
-            ctx.beginPath();
-            ctx.rect(startX, startY, drawL, drawB); 
-            ctx.clip();
-            ctx.strokeStyle = '#cccccc'; ctx.lineWidth = 1;
-            const drawTileL = tileL * scale;
-            const drawTileB = tileB * scale;
-
-            if (pattern === 'Straight Lay' || pattern === 'Brick') {
-                for (let x = startX; x <= startX + drawL + drawTileL; x += drawTileL) { ctx.moveTo(x, startY); ctx.lineTo(x, startY + drawB); }
-                for (let y = startY; y <= startY + drawB + drawTileB; y += drawTileB) { ctx.moveTo(startX, y); ctx.lineTo(startX + drawL, y); }
-            } else if (pattern === 'Diagonal') {
-                const spacing = drawTileL / Math.sqrt(2); 
-                const maxDimDraw = Math.max(drawL, drawB);
-                for (let d = -(maxDimDraw * 1.5); d < maxDimDraw * 1.5; d += spacing) { ctx.moveTo(startX, startY + d); ctx.lineTo(startX + drawL, startY + drawB + d); }
-                for (let d = -(maxDimDraw * 1.5); d < maxDimDraw * 1.5; d += spacing) { ctx.moveTo(startX + d, startY); ctx.lineTo(startX + drawL + d, startY + drawB); }
-            }
-            ctx.stroke(); ctx.restore();
-
-            // 3. Add Dimension Labels
-            ctx.fillStyle = '#343a40'; ctx.font = '14px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText(`L: ${L.toFixed(2)} m`, startX + drawL / 2, startY + drawB + 20);
-            ctx.save(); ctx.translate(startX - 20, startY + drawB / 2); ctx.rotate(-Math.PI / 2);
-            ctx.fillText(`B: ${B.toFixed(2)} m`, 0, 0); ctx.restore();
-            
-        } catch (e) {
-            console.error("Canvas Drawing Error:", e);
-            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
-            ctx.fillStyle = '#dc3545'; ctx.font = '16px sans-serif'; ctx.textAlign = 'center';
-            ctx.fillText('VISUALIZATION ERROR', CANVAS_SIZE / 2, CANVAS_SIZE / 2);
-        }
-    }
-    
-    // Utility function
-    function var2rgb(variable) {
-        const style = getComputedStyle(document.body);
-        return style.getPropertyValue(variable);
-    }
-
-    // Initial setup on load
-    document.addEventListener('DOMContentLoaded', () => {
-        updateManualDimensions();
-        updateCurrentDimensionsDisplay();
-        calculateResults(true);
-        // CRITICAL: Initialize the UI state based on the 'manual' default
-        updateSourceUI(); 
-
-        if ('speechSynthesis' in window) {
-            speechSynthesis.getVoices();
-            speechSynthesis.onvoiceschanged = () => {
-                console.log("Speech voices loaded.");
-            };
-        }
-    });
 </script>
 
 </body>
