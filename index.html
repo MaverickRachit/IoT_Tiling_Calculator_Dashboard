@@ -56,7 +56,6 @@
         .container {
             max-width: 1000px;
             margin: 10px auto 30px;
-            /* Use linear gradient for better light/dark transition on main container */
             background: var(--panel-bg);
             padding: 20px; 
             border-radius: 18px; 
@@ -140,7 +139,7 @@
         }
         .btn-primary:hover {
             transform: translateY(-1px);
-            box-shadow: 0 12px 30px rgba(99, 102, 241, 0.6); /* Use primary color for shadow */
+            box-shadow: 0 12px 30px rgba(99, 102, 241, 0.6);
         }
 
         .btn-warning { 
@@ -189,7 +188,6 @@
 
         select {
             appearance: none;
-            /* Adjust dropdown arrow color based on theme */
             background-image: linear-gradient(45deg, transparent 50%, var(--text-muted) 50%), 
                               linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
             background-position: calc(100% - 18px) calc(50% - 4px), calc(100% - 12px) calc(50% - 4px);
@@ -341,7 +339,7 @@
             text-decoration: underline;
         }
         
-        /* --- MODAL STYLES (Kept theme independent for contrast) --- */
+        /* --- MODAL STYLES --- */
         #result-modal {
             position: fixed; 
             top: 0; left: 0; 
@@ -364,6 +362,24 @@
             opacity: 0;
             border: 1px solid #1e293b;
             transition: transform 0.35s cubic-bezier(0.68, -0.55, 0.27, 1.35), opacity 0.25s;
+        }
+        .modal-content.visible {
+            transform: scale(1);
+            opacity: 1;
+        }
+        .modal-close-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            border-radius: 999px;
+            border: none;
+            background: linear-gradient(135deg, #4ade80, #22c55e);
+            color: #0f172a;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .modal-value {
+            font-size: 2em;
+            margin-top: 10px;
         }
 
         /* --- MOBILE RESPONSIVENESS --- */
@@ -391,7 +407,7 @@
                 height: 260px; 
             }
             .top-controls {
-                flex-direction: column-reverse; /* Put status first, then toggle button */
+                flex-direction: column-reverse;
                 align-items: stretch;
             }
             #connect-status {
@@ -450,7 +466,6 @@
                 <div id="label-b" class="dim-label">B: 0.00 m</div>
                 <div id="label-h" class="dim-label">H: 0.00 m</div>
             </div>
-            <!-- Three.js Canvas will be appended here -->
         </div>
         <div class="grid">
             <div class="input-group">
@@ -488,7 +503,7 @@
         <button class="btn btn-warning" onclick="toggleMeasurementSource()">Toggle Source (Currently: <span id="source-toggle-text">Manual</span>)</button>
     </div>
 
-    <!-- Measurement Buttons (Only visible/enabled in BLE mode) -->
+    <!-- Measurement Buttons -->
     <div class="input-group grid-3" id="live-measurement-section" style="display:none;">
         <div style="text-align: center;">
             <h2>📏 Measure Length (L)</h2>
@@ -549,7 +564,7 @@
         </div>
     </div>
     
-    <!-- Final Results (Combined Tiling and Painting) -->
+    <!-- Final Results -->
     <div class="result-display">
         <h2>📊 Final Tiling & Paint Estimate</h2>
         <div class="grid">
@@ -613,7 +628,6 @@
         </div>
     </div>
 
-    <!-- Placeholder for generic sound feedback -->
     <audio id="audio-success" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAAABkYXRhAAAACgAAAAAAAAA="></audio>
 </div>
 
@@ -627,7 +641,8 @@
     let bleDevice;
     let distanceCharacteristic;
     let controlCharacteristic;
-    let currentMeasurementType = null;
+    let currentMeasurementType = null;      // 'length' | 'breadth' | 'height' | null
+    let waitingForFinalMeasurement = false; // true after sending 'M'
     let liveDimensions = { L: 0, B: 0, H: 3.0 }; 
     let manualDimensions = { L: 4.0, B: 3.0, H: 3.0 }; 
     let measurementSource = 'manual'; 
@@ -681,14 +696,11 @@
             H = manualDimensions.H;
         }
         
-        // Height from main input field overrides everything else for current calculation/display
         H = H_input; 
-        
         return { L: L, B: B, H: H };
     }
     
     function handleHeightChange() {
-        // When the main room-height input changes, update manual and live H states, and recalculate
         const newH = parseFloat(document.getElementById('room-height').value) || 3.0;
         manualDimensions.H = newH;
         liveDimensions.H = newH;
@@ -700,27 +712,21 @@
 
     // --- INITIALIZATION ---
     document.addEventListener('DOMContentLoaded', () => {
-        // 0. Load Theme
         loadTheme();
-
-        // 1. Initialise 3D
         init3DScene();
         
-        // 2. Sync dimensions
         const initialH = parseFloat(document.getElementById('room-height').value) || 3.0;
         document.getElementById('manual-height').value = initialH;
         manualDimensions.H = initialH;
         liveDimensions.H = initialH; 
         
-        // 3. Init UI and run initial calculation
         updateManualDimensions('init'); 
         updateCurrentDimensionsDisplay();
-        updateSourceUI(); // This calls calculateResults(true) and update3DRoomGeometry()
+        updateSourceUI();
         
-        // 4. Preload TTS
         if ('speechSynthesis' in window) {
             speechSynthesis.getVoices();
-            speechSynthesis.onvoiceschanged = () => { /* preload voices */ };
+            speechSynthesis.onvoiceschanged = () => {};
         }
     });
     
@@ -730,49 +736,43 @@
         scene.background = new THREE.Color(0x020617);
 
         camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true }); // Alpha true for background CSS gradient
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         
         renderer.setSize(container.clientWidth, container.clientHeight);
         container.appendChild(renderer.domElement);
 
-        // Lighting
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
         scene.add(ambientLight);
         const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
         directionalLight.position.set(6, 10, 8);
         scene.add(directionalLight);
 
-        // Controls (Orbit Controls)
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.08;
         controls.enablePan = false;
-        controls.minPolarAngle = Math.PI / 4; // Prevent going under the floor
+        controls.minPolarAngle = Math.PI / 4;
         controls.maxPolarAngle = Math.PI / 2;
         controls.minDistance = 5;
         controls.maxDistance = 20;
 
-        // Initial Camera Position (looking at room centre)
         camera.position.set(8, 6, 8); 
         
         roomMesh = new THREE.Group();
         scene.add(roomMesh);
         
-        // Wall Material 
         wallMaterial = new THREE.MeshPhongMaterial({ 
             color: document.getElementById('paint-color').value, 
-            side: THREE.BackSide, // Render walls from inside
+            side: THREE.BackSide,
             shininess: 30
         });
 
-        // Handle resizing
         window.addEventListener('resize', () => {
             camera.aspect = container.clientWidth / container.clientHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(container.clientWidth, container.clientHeight);
         });
 
-        // Animation loop
         const animate = () => {
             requestAnimationFrame(animate);
             controls.update();
@@ -790,7 +790,6 @@
         const B = dims.B;
         const H = dims.H;
 
-        // Remove previous room geometry
         while (roomMesh.children.length > 0) {
             const child = roomMesh.children[0];
             child.geometry && child.geometry.dispose();
@@ -798,7 +797,6 @@
             roomMesh.remove(child);
         }
 
-        // Remove and rebuild grid each time
         if (floorGrid) {
             scene.remove(floorGrid);
             floorGrid = null;
@@ -806,22 +804,19 @@
 
         if (L <= 0 || B <= 0 || H <= 0) return;
 
-        // Grid: centred at origin, approximate 1m divisions
-        const divisions = Math.max(2, Math.round(Math.max(L, B) / 0.5)); // 0.5m grid lines
+        const divisions = Math.max(2, Math.round(Math.max(L, B) / 0.5));
         floorGrid = new THREE.GridHelper(Math.max(L, B), divisions, 0x4b5563, 0x1f2937);
         floorGrid.position.set(0, 0, 0);
         scene.add(floorGrid);
 
-        // Room walls (inverted box, centred)
         const boxGeometry = new THREE.BoxGeometry(L, H, B);
         const walls = new THREE.Mesh(boxGeometry, wallMaterial);
         walls.position.set(0, H / 2, 0);
         roomMesh.add(walls);
         
-        // Floor plane (dark)
         const floorGeometry = new THREE.PlaneGeometry(L, B);
         const floorMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0x0f172a, // Subtle dark blue-gray floor
+            color: 0x0f172a,
             side: THREE.DoubleSide,
             metalness: 0.1,
             roughness: 0.9
@@ -832,7 +827,6 @@
         floor.position.set(0, 0.001, 0); 
         roomMesh.add(floor);
 
-        // Update camera target to center of the room
         controls.target.set(0, H / 2, 0);
     }
     
@@ -840,10 +834,8 @@
         const color = document.getElementById('paint-color').value;
         wallMaterial.color.set(color);
         calculateResults(true);
-        // No need to rebuild geometry, just update material color
     }
 
-    // --- 3D LABELING LOGIC ---
     const labelPositions = { L: new THREE.Vector3(), B: new THREE.Vector3(), H: new THREE.Vector3() };
 
     function update3DLabels() {
@@ -865,15 +857,9 @@
             return;
         }
 
-        // Room is centred at origin: x ∈ [-L/2, L/2], z ∈ [-B/2, B/2]
-        // L label along front edge (z = -B/2)
         labelPositions.L.set(0, 0.01, -B / 2);
-
-        // B label along right edge (x = L/2)
         labelPositions.B.set(L / 2, 0.01, 0); 
-
-        // H label on top of front-right corner
-        labelPositions.H.set(L / 2, H / 2, -B / 2); // Show height on a visible corner
+        labelPositions.H.set(L / 2, H / 2, -B / 2);
 
         const tempV = new THREE.Vector3();
         const containerRect = container.getBoundingClientRect();
@@ -882,13 +868,11 @@
 
         function projectAndMoveLabel(dimChar, pos, text) {
             tempV.copy(pos);
-            // Convert 3D world coordinates to 2D screen coordinates
             tempV.project(camera); 
 
             const el = document.getElementById(`label-${dimChar}`);
             if (!el) return;
 
-            // Map normalized coordinates [-1, 1] to screen pixels [0, width/height]
             const x = (tempV.x * 0.5 + 0.5) * containerWidth;
             const y = (-tempV.y * 0.5 + 0.5) * containerHeight;
 
@@ -903,12 +887,11 @@
         projectAndMoveLabel('h', labelPositions.H, H.toFixed(2));
     }
     
-    // --- TTS FUNCTION ---
+    // --- TTS ---
     function speak(text) {
         if ('speechSynthesis' in window) {
             const utterance = new SpeechSynthesisUtterance(text);
             const voices = speechSynthesis.getVoices();
-            // Try to find an English (India) voice for relevant accent
             const indianVoice = voices.find(voice => voice.lang === 'en-IN');
             if (indianVoice) {
                 utterance.voice = indianVoice;
@@ -919,8 +902,7 @@
         }
     }
 
-    // --- BLE CONNECTION AND COMMANDS (Simulated) ---
-    // NOTE: This implementation is a placeholder. Real BLE requires a connected device.
+    // --- BLE DISCONNECT HANDLER ---
     function bleDisconnectHandler() {
         document.getElementById('connect-status').textContent = '❌ Disconnected from Device';
         document.getElementById('connect-status').className = 'status-disconnected';
@@ -932,45 +914,40 @@
         speak("Device disconnected.");
     }
 
-    // This handles the incoming distance data (simulated for front-end testing)
+    // --- HANDLE DISTANCE NOTIFICATIONS (REAL + MOCK) ---
     function handleDistanceNotification(event) {
-        // In a real application, you would decode the BLE event data here.
-        // const distance = decodeBLEValue(event.target.value); 
-        
-        // For demonstration, we use a mock distance stream that slightly varies
-        const liveDist = (Math.random() * 0.05) + (currentMeasurementType ? 4.0 : 0); // Mocking live stream
-        const distance = liveDist.toFixed(2);
-        
-        document.getElementById('live-distance').textContent = distance;
-        
-        if (currentMeasurementType) {
-            // Mock delay for measurement
-            if (!finalizeMeasurement.isFinalizing) {
-                 finalizeMeasurement.isFinalizing = true;
-                 setTimeout(() => {
-                     finalizeMeasurement(parseFloat(distance));
-                     finalizeMeasurement.isFinalizing = false;
-                 }, 500); // Wait a moment to ensure stable reading
-            }
+        const value = event.target.value;
+        const decoder = new TextDecoder('utf-8');
+        const text = decoder.decode(value).trim();
+        const distance = parseFloat(text);
+
+        if (isNaN(distance)) {
+            console.warn("Received non-numeric distance:", text);
+            return;
+        }
+
+        document.getElementById('live-distance').textContent = distance.toFixed(2);
+
+        if (currentMeasurementType && waitingForFinalMeasurement) {
+            waitingForFinalMeasurement = false;
+            finalizeMeasurement(distance);
         }
     }
 
-    // Mock implementation for connectToBLE
+    // --- CONNECT TO BLE ---
     async function connectToBLE() {
         if (!navigator.bluetooth) {
             const statusEl = document.getElementById('connect-status');
-            statusEl.textContent = '❌ Web Bluetooth UNAVAILABLE (Requires Chrome/Edge, HTTPS)';
+            statusEl.textContent = '❌ Web Bluetooth UNAVAILABLE (Using mock data for demo)';
             statusEl.className = 'status-disconnected';
-            speak("Web Bluetooth is not supported here. Using mock connection for demonstration.");
+            speak("Web Bluetooth is not supported. Enabling mock connection for testing.");
             
-            // Proceed with mock connection (simulating success for sandbox testing)
-            bleDevice = { gatt: { connected: true }, name: 'Distance Streamer', addEventListener: (event, handler) => { /* mock listener */ } };
-            distanceCharacteristic = { startNotifications: async () => {}, addEventListener: (event, handler) => { /* mock listener */ } };
-            controlCharacteristic = { writeValue: async () => {} };
+            bleDevice = { gatt: { connected: true }, name: 'Mock Distance Streamer' };
+            distanceCharacteristic = {};
+            controlCharacteristic = {};
 
-            // Mock success UI update
-            document.getElementById('connect-status').textContent = '✅ Mock Connected (Live Feature Enabled)';
-            document.getElementById('connect-status').className = 'status-connected';
+            statusEl.textContent = '✅ Mock Connected (Live Feature Enabled)';
+            statusEl.className = 'status-connected';
             disableLiveButtons(false);
             
             if (measurementSource === 'manual') {
@@ -978,10 +955,11 @@
                 updateSourceUI();
             }
 
-            // Start mock data stream
+            const encoder = new TextEncoder();
             setInterval(() => {
-                 // Mock event object for handleDistanceNotification
-                 handleDistanceNotification({ target: { value: new TextEncoder('utf-8').encode(Math.random().toFixed(2)) } });
+                const fake = (Math.random() * 2 + 2).toFixed(2); // 2–4m
+                const value = encoder.encode(fake);
+                handleDistanceNotification({ target: { value } });
             }, 100); 
 
             return;
@@ -1026,29 +1004,33 @@
         }
     }
 
-    // Mock implementation for sendMeasureCommand
+    // --- SEND MEASURE COMMAND ('M') ---
     async function sendMeasureCommand() {
-        if (!controlCharacteristic) {
-            // This case should be caught by startMeasurement but safety first
+        if (!controlCharacteristic || !bleDevice || !bleDevice.gatt || !bleDevice.gatt.connected) {
             console.error("Control characteristic or device connection is invalid.");
             return;
         }
-        // In a real device, this would trigger the sensor reading and send a notification back.
-        // Here, we rely on handleDistanceNotification to finalize the reading.
-        console.log("Mock Command Sent: Trigger Measurement");
+
+        try {
+            const encoder = new TextEncoder();
+            waitingForFinalMeasurement = true;
+            await controlCharacteristic.writeValue(encoder.encode('M'));
+            console.log("Sent 'M' command to ESP32");
+        } catch (error) {
+            console.error("Error sending measure command:", error);
+            waitingForFinalMeasurement = false;
+        }
     }
     
     // --- MEASUREMENT LOGIC ---
     const MEASUREMENT_DURATION_SECONDS = 5;
     let countdownIntervalId = null;
-    let lastStableReading = 0;
 
     function startMeasurement(type) {
-        // We now check for 'Mock Connected' as a valid state for using live features in the sandbox
-        const isConnected = document.getElementById('connect-status').textContent.includes('Connected');
+        const isConnected = document.getElementById('connect-status').className.includes('status-connected');
 
         if (measurementSource !== 'live' || !isConnected) {
-            alert("Cannot start: Switch to Live mode and ensure the device is connected (or mock connected).");
+            alert("Cannot start: Switch to Live mode and ensure the device is connected.");
             return;
         }
         
@@ -1058,13 +1040,11 @@
         disableLiveButtons(true);
         
         let remainingTime = MEASUREMENT_DURATION_SECONDS;
-        lastStableReading = 0;
         speak(`Measuring ${type}. Hold the sensor steady.`);
+        waitingForFinalMeasurement = false;
 
-        // 1. Countdown to capture a reading
         statusEl.textContent = `Holding steady... ${remainingTime}s remaining.`;
         
-        // We use a fake interval here, mimicking the user physically holding the device
         countdownIntervalId = setInterval(() => {
             remainingTime--;
             if (remainingTime >= 0) {
@@ -1073,20 +1053,17 @@
             if (remainingTime < 0) {
                 clearInterval(countdownIntervalId);
                 statusEl.textContent = `Capturing final reading...`;
-                // 2. Trigger the "Measure" command via BLE (which will send back a notification)
                 sendMeasureCommand();
             }
         }, 1000);
     }
 
     function finalizeMeasurement(distance) {
-        // Prevent multiple finalizations
         if (!currentMeasurementType) return;
         
         const type = currentMeasurementType;
         const statusEl = document.getElementById(`${type}-status`);
         
-        // Ensure distance is reasonable (not 0.00 from a false reading)
         if (distance <= 0.05) {
             statusEl.textContent = "Measurement Failed: Invalid reading received. Distance too small.";
             currentMeasurementType = null;
@@ -1103,9 +1080,8 @@
             liveDimensions.B = parseFloat(distanceRounded);
         } else if (type === 'height') {
             liveDimensions.H = parseFloat(distanceRounded);
-            // Also sync the master height input
             document.getElementById('room-height').value = distanceRounded;
-            manualDimensions.H = parseFloat(distanceRounded); // Keep manual sync'd
+            manualDimensions.H = parseFloat(distanceRounded);
         }
         
         statusEl.textContent = `${type.charAt(0).toUpperCase() + type.slice(1)} saved: ${distanceRounded} m.`;
@@ -1150,8 +1126,7 @@
             document.getElementById('source-status').textContent = 'Using LIVE BLE data for calculation';
             document.getElementById('source-status').className = 'source-live';
             liveSection.style.display = 'grid';
-            // Only re-enable buttons if connection status is green (connected or mock connected)
-            const isConnected = document.getElementById('connect-status').className.includes('connected');
+            const isConnected = document.getElementById('connect-status').className.includes('status-connected');
             disableLiveButtons(!isConnected);
         }
         updateCurrentDimensionsDisplay();
@@ -1161,8 +1136,7 @@
 
     function toggleMeasurementSource() {
         if (measurementSource === 'manual') {
-            // Check for mock connection state
-            const isConnected = document.getElementById('connect-status').className.includes('connected');
+            const isConnected = document.getElementById('connect-status').className.includes('status-connected');
 
             if (isConnected) {
                 measurementSource = 'live';
@@ -1188,9 +1162,8 @@
         manualDimensions.H = mH;
 
         if (dim === 'H' || dim === 'init') {
-            // When manual height changes, update the primary height input
             document.getElementById('room-height').value = mH.toFixed(2);
-            liveDimensions.H = mH; // Also sync live H to maintain consistency
+            liveDimensions.H = mH;
         }
 
         if (measurementSource === 'manual' || dim === 'init') {
@@ -1241,7 +1214,6 @@
         let totalPaintCost = 0;
 
         if (L > 0 && B > 0 && H > 0 && tileL > 0 && tileB > 0) {
-            // Tiling Calculation (Floor Area)
             areaRoom = L * B;
             const areaTile = tileL * tileB;
             if (areaTile > 0) {
@@ -1250,9 +1222,8 @@
                 totalTileCost = tilesRequired * costPerTile;
             }
             
-            // Paint Calculation (4 walls + Ceiling area assumption - simplified for this app)
             const perimeter = 2 * (L + B);
-            wallArea = (perimeter * H) + areaRoom; // Walls + Ceiling area (assuming no door/window deductions) 
+            wallArea = (perimeter * H) + areaRoom;
             paintLiters = wallArea / PAINT_COVERAGE_SQM_PER_LITER;
             totalPaintCost = paintLiters * costPerLitre;
         }
